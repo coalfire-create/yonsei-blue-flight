@@ -49,7 +49,7 @@ export const TARGETS = [
   { key: 'union', name: '학생회관', en: 'Student Union', code: '207', body: '동아리와 학생 자치의 중심.' },
   { key: 'baekyang', name: '백양관', en: 'Baekyang Hall', code: '310', body: '백양로 한가운데, 캠퍼스의 교차로.' },
   { key: 'amphitheater', name: '노천극장', en: 'Open-Air Theater', body: '아카라카의 함성이 울려 퍼지는 곳.' },
-  { key: 'underwood', name: '언더우드관', en: 'Underwood Hall', code: '501', body: '담쟁이로 덮인 연세의 얼굴.' },
+  { key: 'underwood', name: '언더우드관', en: 'Underwood Hall', code: '501', body: '1924년에 지어진 연세의 상징 석조 건물. 앞마당에서 언더우드 동상이 두 팔을 벌리고 있다.' },
 ]
 
 export class Baekyang {
@@ -68,6 +68,7 @@ export class Baekyang {
     this.#buildGround()
     this.#buildBuildings()
     this.#buildRoute()
+    this.#buildHalls()
     this.#buildStatue()
     this.#buildPost()
 
@@ -156,6 +157,28 @@ export class Baekyang {
     })
   }
 
+  // Every named campus building gets a name tag (one per name, on its largest
+  // footprint); the lock-on landmarks keep their own reticles instead.
+  #buildHalls() {
+    const locked = new Set(TARGETS.map((t) => t.name))
+    const best = new Map()
+    for (const b of DATA.buildings) {
+      if (!b.c || !b.n || locked.has(b.n)) continue
+      let area = 0
+      let cx = 0
+      let cz = 0
+      b.p.forEach(([x, z], i) => {
+        const [x2, z2] = b.p[(i + 1) % b.p.length]
+        area += x * z2 - x2 * z
+        cx += x
+        cz += z
+      })
+      area = Math.abs(area / 2)
+      if ((best.get(b.n)?.area ?? -1) < area) best.set(b.n, { name: b.n, code: b.code, lv: b.lv, area, anchor: new THREE.Vector3(cx / b.p.length, b.h + 3, cz / b.p.length) })
+    }
+    this.halls = [...best.values()]
+  }
+
   // The real statue on its 10 m pillar (bronze eagle, 5.2 m wingspan),
   // at its OSM position, facing down 백양로 toward the main gate.
   #buildStatue() {
@@ -227,8 +250,9 @@ export class Baekyang {
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion)
     const bob = Math.sin(this.flapPhase) * -0.9
     const pos = cam.position.clone()
-      .addScaledVector(fwd, 55)
-      .addScaledVector(up, -11 + bob)
+      // In the campus overview it flies on ahead and down into the scene.
+      .addScaledVector(fwd, 55 + (this.overview ?? 0) * 230)
+      .addScaledVector(up, -11 - (this.overview ?? 0) * 60 + bob)
       .addScaledVector(right, -this.mouse.x * 6 + Math.sin(this.time * 0.6) * 3)
     this.flier.position.lerp(pos, this.flier.userData.placed ? Math.min(1, dt * 8) : 1)
     this.flier.userData.placed = true
@@ -258,12 +282,16 @@ export class Baekyang {
     const ahead = this.route.getPointAt(Math.min(1, this.u + 0.06))
     // Swoop: high over the gate, dropping to eagle height along the avenue,
     // climbing again to look at Underwood Hall.
-    const alt = 130 - 95 * Math.sin(Math.min(1, this.u * 1.25) * Math.PI * 0.5) + 30 * Math.max(0, this.u - 0.85) / 0.15
-    const side = this.mouse.x * 26
+    // Finale: past Underwood Hall the camera soars up and back to take in
+    // the whole campus, every hall named.
+    const up = THREE.MathUtils.smoothstep(this.u, 0.86, 1)
+    const alt = 130 - 95 * Math.sin(Math.min(1, this.u * 1.25) * Math.PI * 0.5) + up * 330
+    const side = this.mouse.x * 26 * (1 - up * 0.6)
     // Start further back so the main gate is in view, then close in.
-    const back = 60 + 110 * Math.max(0, 1 - this.u * 6)
+    const back = 60 + 110 * Math.max(0, 1 - this.u * 6) + up * 380
     this.camera.position.set(here.x + side, alt + this.mouse.y * 12, here.z + back)
-    this.camera.lookAt(ahead.x + side * 0.4, 12, ahead.z - 40)
+    this.camera.lookAt(THREE.MathUtils.lerp(ahead.x + side * 0.4, 20, up), 12, THREE.MathUtils.lerp(ahead.z - 40, -120, up))
+    this.overview = up
     this.camera.rotateZ(-this.mouse.x * 0.12)
     this.scanU.value = here.z - 60 + ((this.time * 120) % 240)
     this.#flyEagle(dt, u)

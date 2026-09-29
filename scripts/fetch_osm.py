@@ -1,5 +1,5 @@
 import json, sys, time, urllib.parse, urllib.request
-B = '37.5585,126.9320,37.5700,126.9420'  # Yonsei Sinchon campus + surroundings
+B = '37.5585,126.9300,37.5760,126.9475'  # the whole Sinchon campus boundary + surroundings
 q = f'''[out:json][timeout:120];
 (way["building"]({B}); relation["building"]({B});
  way["highway"]({B});

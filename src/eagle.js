@@ -21,11 +21,13 @@ export function sapphireEnv(renderer) {
   return env
 }
 
-let modelPromise
-function loadGeometry() {
-  modelPromise ??= new GLTFLoader()
+const models = new Map()
+// Loads a generated sculpt as one plain float geometry in model units.
+export function loadModel(url) {
+  if (models.has(url)) return models.get(url)
+  const p = new GLTFLoader()
     .setMeshoptDecoder(MeshoptDecoder)
-    .loadAsync(MODEL_URL)
+    .loadAsync(url)
     .then((gltf) => {
       let mesh
       gltf.scene.updateMatrixWorld(true)
@@ -45,10 +47,11 @@ function loadGeometry() {
       geo.computeBoundingSphere()
       return geo
     })
-  return modelPromise
+  models.set(url, p)
+  return p
 }
 
-const rimChunk = `float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 3.0);
+export const rimChunk = `float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 3.0);
   gl_FragColor.rgb += uRim * fres * 0.6 * uRimPower;
   #include <dithering_fragment>`
 
@@ -136,7 +139,7 @@ export function buildPillar(height = 4, mat = stoneMaterial()) {
 
 // Eagle group (model units; scale it in the scene). Resolves once loaded.
 export async function buildEagle(material = bronzeMaterial()) {
-  const geo = await loadGeometry()
+  const geo = await loadModel(MODEL_URL)
   const eagle = new THREE.Group()
   const mesh = new THREE.Mesh(geo, material)
   eagle.add(mesh)
@@ -205,8 +208,16 @@ export function shardGeometry(eagle) {
 export function shardMaterial(base, scale = 1) {
   const mat = new THREE.MeshPhysicalMaterial({ color: '#7a5028', metalness: 1, roughness: 0.3, clearcoat: 0.5, side: THREE.DoubleSide, flatShading: true, envMapIntensity: 1.1 })
   mat.userData.burst = { value: 0 }
+  mat.userData.fall = { value: 0 } // 1: shards drop and pile below (melting)
+  mat.userData.heat = { value: 0 } // molten glow
+  mat.userData.time = { value: 0 } // drift while scattered
+  mat.userData.floor = { value: 0 } // model-unit y the melt pools on
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uBurst = mat.userData.burst
+    shader.uniforms.uFall = mat.userData.fall
+    shader.uniforms.uHeat = mat.userData.heat
+    shader.uniforms.uTime = mat.userData.time
+    shader.uniforms.uFloor = mat.userData.floor
     shader.uniforms.uRim = base.userData.rim
     shader.uniforms.uRimPower = base.userData.rimPower
     shader.vertexShader = shader.vertexShader
@@ -214,6 +225,10 @@ export function shardMaterial(base, scale = 1) {
         '#include <common>',
         `#include <common>
         uniform float uBurst;
+        uniform float uFall;
+        uniform float uTime;
+        uniform float uFloor;
+        varying float vSeed;
         attribute vec3 aCenter;
         attribute vec3 aDir;
         attribute float aSeed;
@@ -228,11 +243,15 @@ export function shardMaterial(base, scale = 1) {
         '#include <begin_vertex>',
         `float k = uBurst * (0.7 + aSeed * 0.6);
         mat3 R = rotAxis(vec3(aSeed - 0.5, 1.0, aDir.x), k * (4.0 + aSeed * 6.0));
-        vec3 transformed = R * (position - aCenter) * (1.0 - k * 0.3) + aCenter + aDir * k * ${(0.4 / scale).toFixed(4)} * (2.5 + aSeed * 3.5);`,
+        vec3 transformed = R * (position - aCenter) * (1.0 - k * 0.3) + aCenter + aDir * k * ${(0.4 / scale).toFixed(4)} * (2.5 + aSeed * 3.5) * (1.0 - uFall * 0.7);
+        transformed += k * vec3(sin(uTime * 0.7 + aSeed * 40.0), cos(uTime * 0.5 + aSeed * 31.0), sin(uTime * 0.6 + aSeed * 17.0)) * ${(0.12 / scale).toFixed(4)};
+        // Melting: drops and spreads into a low pile.
+        transformed.y = mix(transformed.y, uFloor + (aCenter.y - uFloor) * 0.04 + aSeed * 0.03, uFall * smoothstep(0.2, 1.0, k));
+        vSeed = aSeed;`,
       )
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimPower;')
-      .replace('#include <dithering_fragment>', rimChunk)
+      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimPower;\nuniform float uHeat;\nvarying float vSeed;')
+      .replace('#include <dithering_fragment>', 'gl_FragColor.rgb += vec3(1.0, 0.45, 0.12) * uHeat * (0.6 + vSeed);\n' + rimChunk)
   }
   mat.customProgramCacheKey = () => 'bronze-shard'
   return mat

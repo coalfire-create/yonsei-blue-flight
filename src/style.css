@@ -3,7 +3,6 @@
   --royal: #003876;
   --sky: #00d2ff;
   --sky2: #4facfe;
-  --ivy: #1a5d1a;
   --fg: #f2f7ff;
   --muted: rgba(242, 247, 255, 0.62);
   --glass: rgba(10, 30, 70, 0.45);
@@ -387,6 +386,36 @@ button {
   font-weight: 700;
   white-space: nowrap;
 }
+.tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 3px 9px 3px 8px;
+  border: 1px solid rgba(127, 200, 255, 0.45);
+  border-left: 3px solid var(--sky);
+  border-radius: 3px;
+  background: rgba(5, 18, 40, 0.78);
+  color: #e6f3ff;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  visibility: hidden;
+  backdrop-filter: blur(4px);
+}
+.tag::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: 10px;
+  background: rgba(127, 200, 255, 0.6);
+}
+.tag:hover {
+  background: var(--sky);
+  color: #001a33;
+}
 .card {
   position: absolute;
   top: 50%;
@@ -432,62 +461,129 @@ button {
   line-height: 1.7;
 }
 
-/* ---------- ivy ---------- */
-.ivy {
-  height: 160vh;
+/* ---------- underwood ---------- */
+.uw {
+  height: 520vh;
 }
-.ivy__copy {
+.uw__era {
   position: absolute;
-  top: 96px;
+  top: 110px;
   left: var(--gutter);
-  max-width: 420px;
-  padding: 24px;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: rgba(5, 12, 26, 0.55);
-  backdrop-filter: blur(14px);
+  max-width: 400px;
+  pointer-events: none;
 }
-.ivy__copy .h2 {
-  font-size: clamp(28px, 3.2vw, 46px);
+.uw__year {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(56px, 7vw, 110px);
+  display: inline-block;
+  white-space: nowrap;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  margin: 14px 0 10px;
+  background: linear-gradient(180deg, #fff, #9fc9ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
-.seasons {
-  display: flex;
-  gap: 8px;
-  margin-top: 20px;
+.uw__title {
+  margin: 0;
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 800;
 }
-.seasons button {
-  padding: 8px 16px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: none;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
+.uw__body {
+  margin-top: 10px;
 }
-.seasons button.is-active {
-  background: var(--fg);
-  color: var(--bg);
-}
-.ivy__count {
-  display: block;
-  margin-top: 16px;
+.uw__dots {
+  position: absolute;
+  right: var(--gutter);
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
   font-family: var(--grotesk);
-  font-size: 13px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
   color: var(--muted);
+  text-align: right;
 }
-.ivy__count b {
-  color: #7fe07a;
+.uw__dots li {
+  transition: color 0.3s, transform 0.3s;
+}
+.uw__dots li::after {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 10px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+.uw__dots li.is-on {
+  color: #fff;
+  transform: translateX(-4px);
+}
+.uw__dots li.is-on::after {
+  background: var(--cyan, #00d2ff);
+  border-color: var(--cyan, #00d2ff);
+}
+.hint--uw {
+  position: absolute;
+  left: 50%;
+  bottom: 36px;
+  margin: 0;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+.hint--uw.is-on {
+  opacity: 1;
+}
+.uw__bubble {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  gap: 2px;
+  padding: 12px 18px;
+  border-radius: 18px 18px 18px 4px;
+  background: #fff;
+  color: #0a1a33;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.uw__bubble[hidden] {
+  display: none;
+}
+.uw__bubble b {
+  font-family: var(--display);
   font-size: 18px;
 }
+.uw__bubble span {
+  font-size: 13px;
+}
 @media (max-width: 760px) {
-  .ivy__copy {
-    top: auto;
-    bottom: 24px;
+  .uw__era {
+    top: 84px;
     right: var(--gutter);
-    padding: 18px;
   }
-  .ivy__copy .body {
+  .uw__year {
+    font-size: 56px;
+  }
+  .uw__body {
+    font-size: 14px;
+  }
+  .uw__dots {
     display: none;
+  }
+  .hint--uw {
+    width: max-content;
+    max-width: calc(100% - 32px);
+    font-size: 12px;
   }
 }
 

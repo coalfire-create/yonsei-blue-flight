@@ -32,7 +32,7 @@
       <a href="#hero" class="nav__logo">YONSEI<span>/ BLUE FLIGHT</span></a>
       <nav class="nav__links">
         <a href="#flight">백양로</a>
-        <a href="#ivy">언더우드</a>
+        <a href="#underwood">언더우드</a>
         <a href="#global">Global</a>
         <a href="#akaraka">Akaraka</a>
       </nav>
@@ -78,22 +78,19 @@
         </div>
       </section>
 
-      <!-- 03 UNDERWOOD IVY -->
-      <section class="scene ivy" id="ivy">
+      <!-- 03 UNDERWOOD: the statue that stood up three times -->
+      <section class="scene uw" id="underwood">
         <div class="scene__sticky">
-          <canvas class="scene__canvas scene__canvas--brush" id="cvIvy"></canvas>
-          <div class="ivy__copy">
-            <span class="kicker">02 — UNDERWOOD HALL · 담쟁이</span>
-            <h2 class="h2">당신의 손끝에서<br />담쟁이가 자랍니다.</h2>
-            <p class="body">언더우드관 벽을 드래그해 보세요. 지나간 자리마다 담쟁이가 피어납니다.</p>
-            <div class="seasons" id="seasons">
-              <button data-season="spring">봄</button>
-              <button data-season="summer" class="is-active">여름</button>
-              <button data-season="autumn">가을</button>
-              <button data-season="winter">겨울</button>
-            </div>
-            <span class="ivy__count"><b id="leafCount">0</b> leaves grown</span>
+          <canvas class="scene__canvas" id="cvUnderwood"></canvas>
+          <div class="uw__era">
+            <span class="kicker">02 — UNDERWOOD · 세 번 세워진 동상</span>
+            <div class="uw__year" id="uwYear">1885</div>
+            <h2 class="uw__title" id="uwTitle"></h2>
+            <p class="body uw__body" id="uwBody"></p>
           </div>
+          <ol class="uw__dots" id="uwDots"></ol>
+          <p class="hint hint--uw" id="uwHint"><span class="hint__dot"></span>커서를 움직이면 언더우드가 바라봅니다 · 동상을 클릭해 인사해 보세요</p>
+          <div class="uw__bubble" id="uwBubble" hidden><b>Welcome to Yonsei!</b><span>연세에 온 것을 환영합니다</span></div>
         </div>
       </section>
 

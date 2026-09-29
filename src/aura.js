@@ -1,10 +1,10 @@
 // "Aura Wing" card: a one-of-a-kind holographic card drawn from the visitor's
-// own flight trail (pointer path over the hero) and how much ivy they grew.
+// own flight trail (pointer path over the hero) and how often Underwood greeted them.
 
 const W = 720
 const H = 1080
 
-export function drawAura(canvas, { trail, leaves, season }) {
+export function drawAura(canvas, { trail, greets = 0 }) {
   const ctx = canvas.getContext('2d')
   const g = ctx.createLinearGradient(0, 0, W, H)
   g.addColorStop(0, '#0a2a66')
@@ -50,26 +50,13 @@ export function drawAura(canvas, { trail, leaves, season }) {
   }
   ctx.restore()
 
-  // Ivy pattern along the bottom, one leaf per ~20 grown (season colour).
-  const leafColor = { summer: '#4fbf4a', autumn: '#e0562b', winter: '#bfe9ff', spring: '#a8e36a' }[season] ?? '#4fbf4a'
-  const n = Math.min(90, 12 + Math.floor(leaves / 20))
-  for (let i = 0; i < n; i++) {
-    const x = 40 + ((i * 97) % (W - 80))
-    const y = H - 150 - ((i * 53) % 120)
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate(((i * 1.7) % 6.28) - 3.14)
-    ctx.fillStyle = leafColor
-    ctx.globalAlpha = 0.55
-    ctx.beginPath()
-    ctx.moveTo(0, 0)
-    ctx.bezierCurveTo(10, -4, 12, -14, 5, -20)
-    ctx.lineTo(0, -28)
-    ctx.lineTo(-5, -20)
-    ctx.bezierCurveTo(-12, -14, -10, -4, 0, 0)
-    ctx.fill()
-    ctx.restore()
-  }
+  // The statue's years along the bottom.
+  ctx.save()
+  ctx.font = '700 20px "Space Grotesk", sans-serif'
+  ctx.fillStyle = 'rgba(191,228,255,0.55)'
+  ctx.textAlign = 'center'
+  ;['1885', '1928', '1948', '1955', 'NOW'].forEach((y, i, a) => ctx.fillText(y, 80 + (i * (W - 160)) / (a.length - 1), H - 130))
+  ctx.restore()
 
   // Text.
   ctx.fillStyle = '#fff'
@@ -85,7 +72,7 @@ export function drawAura(canvas, { trail, leaves, season }) {
   ctx.fillText('FLIGHT', 48, 232)
   ctx.font = '600 22px "Pretendard Variable", Pretendard, sans-serif'
   ctx.fillStyle = 'rgba(255,255,255,0.8)'
-  ctx.fillText(`비행 궤적 ${pts.length}점 · 담쟁이 ${leaves}잎`, 48, H - 70)
+  ctx.fillText(`비행 궤적 ${pts.length}점 · 언더우드와 인사 ${greets}번`, 48, H - 70)
   ctx.font = '500 18px "Space Grotesk", sans-serif'
   ctx.fillText('Beyond the Horizon, Into Eternity.', 48, H - 40)
   ctx.strokeStyle = 'rgba(255,255,255,0.35)'

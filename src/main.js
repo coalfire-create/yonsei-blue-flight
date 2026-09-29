@@ -3,7 +3,7 @@ import gsap from 'gsap'
 import Lenis from 'lenis'
 import { Hero } from './scenes/hero.js'
 import { Baekyang } from './scenes/baekyang.js'
-import { Ivy } from './scenes/ivy.js'
+import { ERAS, Underwood } from './scenes/underwood.js'
 import { Globe, HUBS } from './scenes/globe.js'
 import { Akaraka } from './scenes/akaraka.js'
 import { Outro, PORTALS } from './scenes/outro.js'
@@ -47,7 +47,7 @@ async function boot() {
 
   const hero = new Hero(document.getElementById('cvHero'))
   const flight = new Baekyang(document.getElementById('cvFlight'))
-  const ivy = new Ivy(document.getElementById('cvIvy'))
+  const underwood = new Underwood(document.getElementById('cvUnderwood'))
   const globe = new Globe(document.getElementById('cvGlobe'))
   const akaraka = new Akaraka(document.getElementById('cvAkaraka'))
   const outro = new Outro(document.getElementById('cvOutro'))
@@ -56,7 +56,7 @@ async function boot() {
   const scenes = [
     { el: document.getElementById('hero'), view: hero },
     { el: document.getElementById('flight'), view: flight },
-    { el: document.getElementById('ivy'), view: ivy },
+    { el: document.getElementById('underwood'), view: underwood },
     { el: document.getElementById('global'), view: globe },
     { el: document.getElementById('akaraka'), view: akaraka },
     { el: document.getElementById('outro'), view: outro },
@@ -106,6 +106,51 @@ async function boot() {
     locks.appendChild(el)
     return el
   })
+  // Name tags for every other campus building.
+  const tagEls = flight.halls.map((h) => {
+    const el = document.createElement('button')
+    el.type = 'button'
+    el.className = 'tag'
+    el.textContent = h.name
+    el.addEventListener('click', () =>
+      openCard({ name: h.name, code: h.code, en: 'Yonsei University · Sinchon Campus', body: h.lv ? `연세대학교 신촌캠퍼스 · 지상 ${h.lv}층` : '연세대학교 신촌캠퍼스' }),
+    )
+    locks.prepend(el)
+    h.alpha = 0
+    return el
+  })
+  const placeTags = (dt, reserved) => {
+    const cam = flight.camera.position
+    const far = 260 + flight.overview * 700
+    const max = (innerWidth < 760 ? 7 : 16) + Math.round(flight.overview * (innerWidth < 760 ? 12 : 40))
+    const cand = []
+    flight.halls.forEach((h, i) => {
+      const d = cam.distanceTo(h.anchor)
+      const sc = d < far && flight.screen(h.anchor)
+      if (sc && sc.x > 10 && sc.x < innerWidth - 10 && sc.y > 70 && sc.y < viewH - 30) cand.push({ i, d, sc })
+    })
+    // Nearest first; skip tags that would overlap one already placed.
+    cand.sort((a, b) => a.d - b.d)
+    const placed = [...reserved]
+    const shown = new Set()
+    for (const c of cand) {
+      if (placed.length - reserved.length >= max) break
+      const w = tagEls[c.i].offsetWidth || 80
+      if (placed.some((p) => Math.abs(p.x - c.sc.x) < (p.w + w) / 2 + 4 && Math.abs(p.y - c.sc.y) < 24)) continue
+      placed.push({ x: c.sc.x, y: c.sc.y, w })
+      shown.add(c.i)
+      const el = tagEls[c.i]
+      el.style.transform = `translate(${c.sc.x}px, ${c.sc.y}px) translate(-50%, -100%)`
+    }
+    // Fade rather than blink as tags come and go.
+    flight.halls.forEach((h, i) => {
+      h.alpha += ((shown.has(i) ? 1 : 0) - h.alpha) * Math.min(1, dt * 6)
+      const el = tagEls[i]
+      el.style.opacity = h.alpha.toFixed(2)
+      el.style.visibility = h.alpha > 0.03 ? 'visible' : 'hidden'
+      el.style.pointerEvents = shown.has(i) ? 'auto' : 'none'
+    })
+  }
   const card = document.getElementById('card')
   const openCard = (t) => {
     document.getElementById('cardCode').textContent = t.code ? `BLDG ${t.code}` : 'LANDMARK'
@@ -120,17 +165,27 @@ async function boot() {
   const lockName = document.getElementById('lockName')
   const flightHead = document.querySelector('.flight__head')
 
-  /* Ivy. */
-  ivy.seedLater = true
-  const leafCount = document.getElementById('leafCount')
-  let season = 'summer'
-  document.querySelectorAll('#seasons button').forEach((b) =>
-    b.addEventListener('click', () => {
-      season = b.dataset.season
-      ivy.setSeason(season)
-      document.querySelectorAll('#seasons button').forEach((x) => x.classList.toggle('is-active', x === b))
-    }),
-  )
+  /* Underwood: era captions, timeline dots, greeting bubble. */
+  const uwYear = document.getElementById('uwYear')
+  const uwTitle = document.getElementById('uwTitle')
+  const uwBody = document.getElementById('uwBody')
+  const uwHint = document.getElementById('uwHint')
+  const uwBubble = document.getElementById('uwBubble')
+  const uwDots = ERAS.map((e) => {
+    const li = document.createElement('li')
+    li.textContent = e.year
+    document.getElementById('uwDots').appendChild(li)
+    return li
+  })
+  if (matchMedia('(hover: none)').matches) uwHint.lastChild.textContent = '화면을 끌면 언더우드가 바라봅니다 · 동상을 탭해 인사해 보세요'
+  let uwEra = -1
+  let greets = 0
+  underwood.onGreet = () => {
+    greets++
+    uwBubble.hidden = false
+    gsap.fromTo(uwBubble, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.5, ease: 'back.out(2)' })
+    gsap.to(uwBubble, { opacity: 0, delay: 2.2, duration: 0.4, onComplete: () => (uwBubble.hidden = true) })
+  }
 
   /* Globe labels. */
   const hubsWrap = document.getElementById('hubs')
@@ -166,7 +221,7 @@ async function boot() {
   const auraCanvas = document.getElementById('auraCanvas')
   const auraStage = document.getElementById('auraStage')
   document.getElementById('auraBtn').addEventListener('click', () => {
-    drawAura(auraCanvas, { trail, leaves: ivy.count, season })
+    drawAura(auraCanvas, { trail, greets })
     document.getElementById('auraSave').href = auraCanvas.toDataURL('image/png')
     aura.hidden = false
     lenis.stop()
@@ -192,13 +247,14 @@ async function boot() {
     flight.progress = fp
     flightHead.style.opacity = 1 - clamp01((fp - 0.04) / 0.06)
 
-    if (scenes[2].on && !ivy.seeded) ivy.seed()
+    underwood.progress = progress(scenes[2].el)
 
     for (const s of scenes) if (s.on) s.view.render(dt)
 
     if (scenes[1].on) {
       speedEl.textContent = Math.round(40 + flight.boost * 1200 + Math.min(60, Math.abs(lenis.velocity) * 3))
       let best = null
+      const lockBoxes = []
       flight.targets.forEach((t, i) => {
         const el = lockEls[i]
         const sc = t.near > 0.25 && flight.screen(t.anchor)
@@ -208,11 +264,29 @@ async function boot() {
         el.style.opacity = t.near
         el.style.transform = `translate(${sc.x}px, ${sc.y}px) translate(-50%, -50%) scale(${0.8 + t.near * 0.3})`
         el.classList.toggle('is-locked', t.near > 0.75)
+        lockBoxes.push({ x: sc.x, y: sc.y + 30, w: 120 })
         if (!best || t.near > best.near) best = t
       })
       lockName.textContent = best && best.near > 0.75 ? best.name : '—'
+      placeTags(dt, lockBoxes)
     }
-    if (scenes[2].on) leafCount.textContent = ivy.count.toLocaleString()
+    if (scenes[2].on) {
+      const i = underwood.era()
+      if (i !== uwEra) {
+        uwEra = i
+        const e = ERAS[i]
+        uwYear.textContent = e.year
+        uwTitle.textContent = e.title
+        uwBody.textContent = e.body
+        uwDots.forEach((d, k) => d.classList.toggle('is-on', k === i))
+        gsap.fromTo([uwYear, uwTitle, uwBody], { y: 24, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.06, duration: 0.6, ease: 'expo.out', overwrite: true })
+      }
+      uwHint.classList.toggle('is-on', underwood.alive > 0.6)
+      if (!uwBubble.hidden) {
+        const h = underwood.headScreen()
+        uwBubble.style.transform = `translate(${h.x + 24}px, ${h.y - 70}px)`
+      }
+    }
     if (scenes[3].on) {
       globe.hubScreens().forEach((s, i) => {
         const el = hubEls[i]

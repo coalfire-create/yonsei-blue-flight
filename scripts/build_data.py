@@ -1,9 +1,10 @@
 """Build src/data/campus.json for the Yonsei site from OpenStreetMap
 (© OpenStreetMap contributors, ODbL; scripts/osm.json via fetch_osm.py).
 
-Metres around the campus centre: x east, z south. Campus buildings are the
-ones OSM tags as university buildings (most carry Yonsei's building numbers);
-everything else nearby is background. The flight route follows the real
+Metres around the campus centre: x east, z south. Campus buildings are every
+building inside OSM's 연세대학교 신촌캠퍼스 boundary (scripts/campus_boundary.json,
+relation 18619603), named from OSM, or from a named institution point inside
+the footprint; everything else nearby is background. The flight route follows the real
 백양로 from the main gate north to Underwood Hall.
 """
 import json, math, os, re
@@ -31,6 +32,43 @@ M_LON = M_LAT * math.cos(math.radians(lat0))
 to_xz = lambda lat, lon: [round((lon - lon0) * M_LON, 1), round(-(lat - lat0) * M_LAT, 1)]
 dist = lambda a, b: math.hypot((a[0] - b[0]) * M_LAT, (a[1] - b[1]) * M_LON)
 
+# Campus boundary: outer rings minus inner rings (ways joined end to end).
+def rings(role):
+    parts = [[(p['lat'], p['lon']) for p in m['geometry']] for m in json.load(open(os.path.join(HERE, 'campus_boundary.json')))['members'] if m['role'] == role]
+    out = []
+    while parts:
+        ring = parts.pop(0)
+        while ring[0] != ring[-1]:
+            nxt = next((q for q in parts if q[0] == ring[-1] or q[-1] == ring[-1]), None)
+            if nxt is None:
+                break
+            parts.remove(nxt)
+            ring += (nxt if nxt[0] == ring[-1] else nxt[::-1])[1:]
+        out.append(ring)
+    return out
+
+
+def inside(pt, ring):
+    y, x = pt
+    c = False
+    for (y1, x1), (y2, x2) in zip(ring, ring[1:] + ring[:1]):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            c = not c
+    return c
+
+
+OUTER, INNER = rings('outer'), rings('inner')
+on_campus = lambda pt: any(inside(pt, r) for r in OUTER) and not any(inside(pt, r) for r in INNER)
+# Named institution points (a hall, institute, school…) used to name footprints.
+INST = re.compile(r'(관|원|당|센터|병원|학교|대학|대학원|연구소|연구동|기념관|홀|채플|극장|본부|학사|하우스)(\s*\(\d+\))?$')
+points = [((e['lat'], e['lon']), e['tags']['name']) for e in els
+          if e['type'] == 'node' and 'name' in e.get('tags', {}) and INST.search(e['tags']['name'])
+          and not re.search(r'\d층|자습실|룸|카페|편의점|식당', e['tags']['name'])]
+
+YONSEI_NAME = re.compile(r'세브란스|연세대학교|의과대학|치과대학|간호대학|에비슨|연세암병원|심장혈관병원|재활병원|안과병원|어린이병원|연세삼성|\(\d{3}\)')
+# Structures that are real footprints but not buildings worth a name tag.
+NOT_A_HALL = re.compile(r'계단|그네|연결|통로|다리|휴식장|창고|온실|정자|식당|돔|지하|아케이|차량실|영선실|사택|공관')
+
 buildings = []
 for e in els:
     t = e.get('tags', {})
@@ -38,17 +76,23 @@ for e in els:
         continue
     ring = [(p['lat'], p['lon']) for p in e['geometry']]
     c = (sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring))
-    if dist(c, (lat0, lon0)) > 750:
-        continue
     name = t.get('name', '')
-    campus = t.get('building') == 'university' or bool(re.search(r'\(\d{3}\)', name)) or name in ('노천극장',)
+    # Plus the Severance medical campus next door, which OSM draws outside
+    # the boundary but is Yonsei's own.
+    campus = on_campus(c) or bool(YONSEI_NAME.search(name))
+    if dist(c, (lat0, lon0)) > (1400 if campus else 750):
+        continue
+    if campus and not name:
+        name = min((n for pt, n in points if inside(pt, ring)), key=len, default='')
     try:
         levels = float(t.get('building:levels', 0))
     except ValueError:
         levels = 0
     h = levels * 4 if levels else (18 if campus else 12)
     b = {'p': [to_xz(*p) for p in ring], 'h': round(h, 1), 'c': 1 if campus else 0}
-    if campus and name:
+    if campus and levels:
+        b['lv'] = int(levels)
+    if campus and name and not NOT_A_HALL.search(name):
         b['n'] = re.sub(r'\s*\(\d+\)', '', name)
         code = re.search(r'\((\d+)\)', name)
         if code:
