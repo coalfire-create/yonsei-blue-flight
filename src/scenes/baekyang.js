@@ -5,7 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import DATA from '../data/campus.json'
-import { buildEagle, buildPillar, PILLAR_TOP, sapphireEnv } from '../eagle.js'
+import { buildEagle, buildPillar, PILLAR_TOP, poseEagle, sapphireEnv } from '../eagle.js'
 
 // Eagle-eye flight up the real 백양로 from the main gate to Underwood Hall,
 // over OpenStreetMap footprints of the Sinchon campus (© OSM contributors).
@@ -172,6 +172,25 @@ export class Baekyang {
     const glow = new THREE.PointLight('#ffd9a0', 400, 40)
     glow.position.set(x, 8, z)
     this.scene.add(g, glow)
+
+    // The eagle you follow: flies ahead of the camera up 백양로, its wings
+    // beating faster the faster you scroll.
+    this.flier = new THREE.Group()
+    this.flier.visible = false
+    this.scene.add(this.flier)
+    const key = new THREE.DirectionalLight('#ffe2b8', 0.9)
+    key.position.set(0.4, 1, 0.6)
+    this.flier.add(key, key.target)
+    buildEagle().then((e) => {
+      e.scale.setScalar(15)
+      // Level the landing-pose body out into flight.
+      e.rotation.x = 0.55
+      this.flierModel = e
+      this.flier.add(e)
+      this.flier.visible = true
+    })
+    this.flapPhase = 0
+    this.bank = 0
   }
 
   #buildPost() {
@@ -189,6 +208,37 @@ export class Baekyang {
     this.camera.aspect = w / h
     this.camera.fov = w / h < 0.8 ? 78 : 62
     this.camera.updateProjectionMatrix()
+  }
+
+  #flyEagle(dt, u) {
+    if (!this.flierModel) return
+    // Scroll speed drives the wingbeat; gliding slowly when idle.
+    const speed = Math.abs(u - (this.lastU ?? u)) / Math.max(dt, 1e-3)
+    this.lastU = u
+    this.beat = (this.beat ?? 0) + (Math.min(1, speed * 6) - (this.beat ?? 0)) * Math.min(1, dt * 3)
+    this.flapPhase += dt * (2.2 + this.beat * 7)
+    poseEagle(this.flierModel, this.flapPhase, 0.55 + this.beat * 0.45)
+
+    // Hold a spot ~55 m ahead of the camera, low in the frame, drifting
+    // opposite the pointer so steering shows parallax.
+    const cam = this.camera
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion)
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion)
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion)
+    const bob = Math.sin(this.flapPhase) * -0.9
+    const pos = cam.position.clone()
+      .addScaledVector(fwd, 55)
+      .addScaledVector(up, -11 + bob)
+      .addScaledVector(right, -this.mouse.x * 6 + Math.sin(this.time * 0.6) * 3)
+    this.flier.position.lerp(pos, this.flier.userData.placed ? Math.min(1, dt * 8) : 1)
+    this.flier.userData.placed = true
+    // Face up the avenue; bank into the route's turns and the pointer.
+    const t = this.route.getTangentAt(Math.min(1, this.u + 0.02))
+    const t2 = this.route.getTangentAt(Math.min(1, this.u + 0.08))
+    const turn = t.x * t2.z - t.z * t2.x
+    this.bank += (THREE.MathUtils.clamp(turn * 8 - this.mouse.x * 0.5, -0.7, 0.7) - this.bank) * Math.min(1, dt * 2)
+    this.flier.lookAt(this.flier.position.clone().add(new THREE.Vector3(t.x, 0, t.z)))
+    this.flier.rotateZ(this.bank)
   }
 
   // Screen position of a world point, or null if behind the camera.
@@ -216,6 +266,7 @@ export class Baekyang {
     this.camera.lookAt(ahead.x + side * 0.4, 12, ahead.z - 40)
     this.camera.rotateZ(-this.mouse.x * 0.12)
     this.scanU.value = here.z - 60 + ((this.time * 120) % 240)
+    this.#flyEagle(dt, u)
 
     // Lock-on boxes glow while their building is in range.
     for (const t of this.targets) {
