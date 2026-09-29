@@ -122,7 +122,7 @@ async function boot() {
   const placeTags = (dt, reserved) => {
     const cam = flight.camera.position
     const far = 260 + flight.overview * 700
-    const max = (innerWidth < 760 ? 7 : 16) + Math.round(flight.overview * (innerWidth < 760 ? 12 : 40))
+    const max = (innerWidth < 760 ? 6 : 16) + Math.round(flight.overview * (innerWidth < 760 ? 4 : 40))
     const cand = []
     flight.halls.forEach((h, i) => {
       const d = cam.distanceTo(h.anchor)
@@ -151,9 +151,44 @@ async function boot() {
       el.style.pointerEvents = shown.has(i) ? 'auto' : 'none'
     })
   }
+  /* Building directory: pick any hall and the eagle flies over to circle it. */
+  const dir = document.getElementById('dir')
+  const dirList = document.getElementById('dirList')
+  const dirSearch = document.getElementById('dirSearch')
+  const dirBack = document.getElementById('dirBack')
+  document.getElementById('dirCount').textContent = flight.directory.length
+  const dirItems = flight.directory.map((h) => {
+    const li = document.createElement('li')
+    li.innerHTML = `<button type="button"><span>${h.name}</span><small>${h.code ? h.code : ''}</small></button>`
+    li.firstChild.addEventListener('click', () => {
+      flight.flyTo(h)
+      dir.hidden = true
+      dirBack.hidden = false
+      openCard({ name: h.name, code: h.code, en: h.en || 'Yonsei University · Sinchon Campus', body: h.body || (h.lv ? `연세대학교 신촌캠퍼스 · 지상 ${h.lv}층` : '연세대학교 신촌캠퍼스') })
+    })
+    dirList.appendChild(li)
+    return { li, name: h.name }
+  })
+  dirSearch.addEventListener('input', () => {
+    const q = dirSearch.value.trim()
+    dirItems.forEach(({ li, name }) => (li.hidden = q && !name.includes(q)))
+  })
+  // Keep wheel/touch scrolling inside the list from driving the page.
+  dirList.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true })
+  dir.setAttribute('data-lenis-prevent', '')
+  document.getElementById('dirBtn').addEventListener('click', () => {
+    dir.hidden = !dir.hidden
+    if (!dir.hidden) dirSearch.focus({ preventScroll: true })
+  })
+  document.getElementById('dirClose').addEventListener('click', () => (dir.hidden = true))
+  dirBack.addEventListener('click', () => flight.exitFree())
+  flight.onExitFree = () => {
+    dirBack.hidden = true
+    card.hidden = true
+  }
   const card = document.getElementById('card')
   const openCard = (t) => {
-    document.getElementById('cardCode').textContent = t.code ? `BLDG ${t.code}` : 'LANDMARK'
+    document.getElementById('cardCode').textContent = t.code ? `BLDG ${t.code}` : t.key ? 'LANDMARK' : 'CAMPUS'
     document.getElementById('cardName').textContent = t.name
     document.getElementById('cardEn').textContent = t.en
     document.getElementById('cardBody').textContent = t.body
@@ -177,6 +212,7 @@ async function boot() {
     document.getElementById('uwDots').appendChild(li)
     return li
   })
+  if (matchMedia('(hover: none)').matches) document.querySelector('.hint--flight').lastChild.textContent = '화면을 끌어 방향 전환 · 타겟을 탭해 보세요'
   if (matchMedia('(hover: none)').matches) uwHint.lastChild.textContent = '화면을 끌면 언더우드가 바라봅니다 · 동상을 탭해 인사해 보세요'
   let uwEra = -1
   let greets = 0

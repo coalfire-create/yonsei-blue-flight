@@ -60,14 +60,25 @@
           <canvas class="scene__canvas" id="cvFlight"></canvas>
           <div class="locks" id="locks"></div>
           <div class="flight__head">
-            <span class="kicker">01 — EAGLE FPV · 백양로</span>
-            <h2 class="h2">정문에서 언더우드관까지,<br />독수리의 시선으로.</h2>
+            <span class="kicker">01 — EAGLE FPV · 신촌캠퍼스 전역</span>
+            <h2 class="h2">정문에서 세브란스까지,<br />독수리의 시선으로.</h2>
           </div>
           <div class="flight__hud">
             <div><span class="hud__label">SPEED</span><span class="hud__big" id="speed">0</span><span class="hud__unit">km/h</span></div>
             <div><span class="hud__label">TARGET</span><span class="hud__mid" id="lockName">—</span></div>
           </div>
           <p class="hint hint--flight"><span class="hint__dot"></span>화면에 커서를 올리면 가속 · 타겟을 클릭해 보세요</p>
+          <button class="dir-btn" id="dirBtn" type="button">건물 전체 보기 <b id="dirCount"></b></button>
+          <button class="dir-back" id="dirBack" type="button" hidden>← 투어로 돌아가기</button>
+          <aside class="dir" id="dir" hidden>
+            <div class="dir__head">
+              <b>연세대학교 신촌캠퍼스</b>
+              <button class="dir__close" id="dirClose" type="button" aria-label="닫기">×</button>
+            </div>
+            <input class="dir__search" id="dirSearch" type="search" placeholder="건물 이름 검색" autocomplete="off" />
+            <ul class="dir__list" id="dirList"></ul>
+            <p class="dir__note">건물 위치·윤곽: © OpenStreetMap contributors · 지형: AWS Terrain Tiles</p>
+          </aside>
           <div class="card" id="card" hidden>
             <button class="card__close" id="cardClose" aria-label="닫기">×</button>
             <span class="card__code" id="cardCode"></span>

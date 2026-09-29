@@ -80,7 +80,7 @@ for e in els:
     # Plus the Severance medical campus next door, which OSM draws outside
     # the boundary but is Yonsei's own.
     campus = on_campus(c) or bool(YONSEI_NAME.search(name))
-    if dist(c, (lat0, lon0)) > (1400 if campus else 750):
+    if dist(c, (lat0, lon0)) > (1400 if campus else 1100):
         continue
     if campus and not name:
         name = min((n for pt, n in points if inside(pt, ring)), key=len, default='')
@@ -129,13 +129,18 @@ for key, name in [('underwood', '언더우드관 (501)'), ('library', '중앙도
     landmarks[key] = to_xz(sum(p['lat'] for p in w['geometry']) / len(w['geometry']), sum(p['lon'] for p in w['geometry']) / len(w['geometry']))
     landmarks[key + 'Ring'] = [to_xz(p['lat'], p['lon']) for p in w['geometry']]
 
+# Streets and walks with a width class: w (wide road), r (road), p (pedestrian
+# street), f (foot path / steps).
+WIDTH = {'primary': 'w', 'secondary': 'w', 'tertiary': 'w', 'trunk': 'w', 'residential': 'r', 'unclassified': 'r',
+         'service': 'r', 'living_street': 'r', 'pedestrian': 'p', 'footway': 'f', 'path': 'f', 'steps': 'f', 'cycleway': 'f', 'track': 'f'}
 paths = []
 for e in els:
     t = e.get('tags', {})
-    if t.get('highway') and 'geometry' in e:
+    k = WIDTH.get(t.get('highway'))
+    if k and 'geometry' in e:
         pts = [to_xz(p['lat'], p['lon']) for p in e['geometry']]
-        if any(abs(x) < 750 and abs(z) < 750 for x, z in pts):
-            paths.append(pts)
+        if any(-1200 < x < 1200 and -1600 < z < 1200 for x, z in pts):
+            paths.append({'k': k, 'p': pts})
 
 out = {'origin': [round(lat0, 6), round(lon0, 6)], 'buildings': buildings, 'route': route, 'paths': paths, 'landmarks': landmarks}
 os.makedirs(os.path.join(HERE, '..', 'src', 'data'), exist_ok=True)

@@ -294,7 +294,7 @@ button {
 
 /* ---------- 백양로 flight ---------- */
 .flight {
-  height: 650vh;
+  height: 900vh;
 }
 .flight__head {
   position: absolute;
@@ -415,6 +415,120 @@ button {
 .tag:hover {
   background: var(--sky);
   color: #001a33;
+}
+.dir-btn,
+.dir-back {
+  position: absolute;
+  top: 88px;
+  right: var(--gutter);
+  z-index: 3;
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(5, 18, 40, 0.72);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dir-btn b {
+  margin-left: 6px;
+  color: var(--sky);
+}
+.dir-back {
+  right: auto;
+  left: 50%;
+  top: auto;
+  bottom: 110px;
+  transform: translateX(-50%);
+  background: var(--sky);
+  color: #001a33;
+  border-color: transparent;
+}
+.dir {
+  position: absolute;
+  top: 80px;
+  right: var(--gutter);
+  bottom: 150px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  width: min(340px, calc(100% - 32px));
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(5, 14, 30, 0.86);
+  backdrop-filter: blur(16px);
+}
+.dir[hidden] {
+  display: none;
+}
+.dir__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.dir__close {
+  border: 0;
+  background: none;
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+}
+.dir__search {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+}
+.dir__list {
+  flex: 1;
+  margin: 10px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+}
+.dir__list button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: #e6f0ff;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.dir__list button:hover {
+  background: rgba(0, 210, 255, 0.14);
+}
+.dir__list small {
+  color: var(--muted);
+  font-family: var(--grotesk);
+}
+.dir__note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+@media (max-width: 760px) {
+  .dir {
+    top: 70px;
+    bottom: 20px;
+  }
+  .dir-btn {
+    top: 74px;
+    font-size: 13px;
+  }
 }
 .card {
   position: absolute;
