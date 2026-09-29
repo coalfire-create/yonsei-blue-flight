@@ -5,6 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import DATA from '../data/campus.json'
+import { buildEagle, buildPillar, PILLAR_TOP, sapphireEnv } from '../eagle.js'
 
 // Eagle-eye flight up the real 백양로 from the main gate to Underwood Hall,
 // over OpenStreetMap footprints of the Sinchon campus (© OSM contributors).
@@ -43,7 +44,7 @@ const buildingFrag = /* glsl */ `
 // Buildings that get a lock-on target, with card copy.
 export const TARGETS = [
   { key: 'gate', name: '정문', en: 'Main Gate', body: '신촌에서 연세의 모든 이야기가 시작되는 곳.' },
-  { key: 'eagle', name: '독수리상', en: 'Eagle Statue', body: '연세의 상징, 창공을 향한 독수리.' },
+  { key: 'eagle', name: '독수리상', en: 'Eagle Statue', body: '1970년 학생들의 모금으로 세운 청동 독수리. 날개 폭 5.2m, 10m 탑 위에서 비상한다.' },
   { key: 'library', name: '중앙도서관', en: 'Central Library', code: '301', body: '지성의 심장. 밤늦도록 불이 꺼지지 않는 곳.' },
   { key: 'union', name: '학생회관', en: 'Student Union', code: '207', body: '동아리와 학생 자치의 중심.' },
   { key: 'baekyang', name: '백양관', en: 'Baekyang Hall', code: '310', body: '백양로 한가운데, 캠퍼스의 교차로.' },
@@ -67,6 +68,7 @@ export class Baekyang {
     this.#buildGround()
     this.#buildBuildings()
     this.#buildRoute()
+    this.#buildStatue()
     this.#buildPost()
 
     addEventListener('pointermove', (e) => this.mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1))
@@ -152,6 +154,24 @@ export class Baekyang {
       }
       return { ...t, anchor, box, u: bestU }
     })
+  }
+
+  // The real statue on its 10 m pillar (bronze eagle, 5.2 m wingspan),
+  // at its OSM position, facing down 백양로 toward the main gate.
+  #buildStatue() {
+    this.scene.environment = sapphireEnv(this.renderer)
+    const [x, z] = DATA.landmarks.eagle
+    const span = 5.2
+    const g = new THREE.Group()
+    g.scale.setScalar(span)
+    g.position.set(x, 10 - PILLAR_TOP * span, z)
+    const gate = this.route.getPointAt(0)
+    g.rotation.y = Math.atan2(gate.x - x, gate.z - z)
+    g.add(buildPillar(10 / span, new THREE.MeshStandardMaterial({ color: '#b9c6da', roughness: 0.85 })))
+    buildEagle().then((e) => g.add(e))
+    const glow = new THREE.PointLight('#ffd9a0', 400, 40)
+    glow.position.set(x, 8, z)
+    this.scene.add(g, glow)
   }
 
   #buildPost() {

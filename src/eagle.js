@@ -1,8 +1,18 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 
-// A faceted chrome-sapphire eagle built from geometry (no model file).
-// Faces +z, up +y, wings along ±x; wingspan ≈ 6 units.
+// The Yonsei eagle statue: a bronze eagle landing on the top of a tall white
+// stone pillar, wings raised up and back (as on 백양로). The sculpt is a mesh
+// (public/models/eagle.glb: TRELLIS.2 image-to-3D from a generated reference,
+// generated pedestal cut off, meshopt-compressed; model units: wingspan 1,
+// +z forward, y up) and its
+// wings beat through a vertex-shader hinge at the shoulders and elbows.
+
+const MODEL_URL = '/models/eagle.glb'
+export const PILLAR_TOP = -0.207 // model-unit y where the talons grip
+const PILLAR_W = 0.26
 
 export function sapphireEnv(renderer) {
   const pmrem = new THREE.PMREMGenerator(renderer)
@@ -11,173 +21,140 @@ export function sapphireEnv(renderer) {
   return env
 }
 
-// Chrome sapphire with a royal-blue/cyan fresnel rim.
-export function sapphireMaterial({ rim = new THREE.Color('#4facfe') } = {}) {
+let modelPromise
+function loadGeometry() {
+  modelPromise ??= new GLTFLoader()
+    .setMeshoptDecoder(MeshoptDecoder)
+    .loadAsync(MODEL_URL)
+    .then((gltf) => {
+      let mesh
+      gltf.scene.updateMatrixWorld(true)
+      gltf.scene.traverse((o) => o.isMesh && (mesh ??= o))
+      // Dequantize into plain floats in model units so the shader hinges
+      // and the shard burst can work on real positions.
+      const src = mesh.geometry
+      const geo = new THREE.BufferGeometry()
+      for (const name of ['position', 'normal']) {
+        const a = src.getAttribute(name)
+        const out = new Float32Array(a.count * 3)
+        for (let i = 0; i < a.count; i++) out.set([a.getX(i), a.getY(i), a.getZ(i)], i * 3)
+        geo.setAttribute(name, new THREE.BufferAttribute(out, 3))
+      }
+      geo.setIndex(src.index)
+      geo.applyMatrix4(mesh.matrixWorld)
+      geo.computeBoundingSphere()
+      return geo
+    })
+  return modelPromise
+}
+
+const rimChunk = `float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 3.0);
+  gl_FragColor.rgb += uRim * fres * 0.6 * uRimPower;
+  #include <dithering_fragment>`
+
+// Wing hinge in the vertex shader. Shoulder pivots at x = ±0.09 and elbow at
+// x = ±0.3 (raised pose), both rotating about the forward (z) axis; weights
+// ramp in so the body never tears.
+const hingeChunk = `
+  uniform float uBeat;   // shoulder angle, radians (+ = downstroke)
+  uniform float uBeat2;  // elbow lag angle
+  vec3 hinge(vec3 p, vec3 piv, float a){
+    float s = sin(a), c = cos(a);
+    vec3 d = p - piv;
+    return piv + vec3(c * d.x - s * d.y, s * d.x + c * d.y, d.z);
+  }
+  // Only the wings: not the tail (behind), legs (below) or the head.
+  float wingMask(vec3 p){
+    return smoothstep(-0.2, -0.12, p.z) * smoothstep(-0.1, 0.0, p.y);
+  }
+  vec3 wing(vec3 p){
+    float side = sign(p.x);
+    float ax = abs(p.x);
+    float m = wingMask(p);
+    float w1 = smoothstep(0.07, 0.15, ax) * m;
+    float w2 = smoothstep(0.26, 0.36, ax) * m;
+    p = hinge(p, vec3(side * 0.3, 0.2, p.z), -side * uBeat2 * w2);
+    p = hinge(p, vec3(side * 0.09, 0.06, p.z), -side * uBeat * w1);
+    return p;
+  }
+  vec3 wingN(vec3 p, vec3 n){
+    float side = sign(p.x);
+    float ax = abs(p.x);
+    float a = -side * wingMask(p) * (uBeat * smoothstep(0.07, 0.15, ax) + uBeat2 * smoothstep(0.26, 0.36, ax));
+    float s = sin(a), c = cos(a);
+    return vec3(c * n.x - s * n.y, s * n.x + c * n.y, n.z);
+  }
+`
+
+export function bronzeMaterial({ rim = '#4facfe' } = {}) {
   const mat = new THREE.MeshPhysicalMaterial({
-    color: '#2458d6',
+    color: '#6a4524',
     metalness: 1,
-    roughness: 0.2,
-    clearcoat: 1,
-    clearcoatRoughness: 0.08,
-    flatShading: true,
-    side: THREE.DoubleSide,
-    envMapIntensity: 1.5,
+    roughness: 0.38,
+    clearcoat: 0.25,
+    clearcoatRoughness: 0.4,
+    envMapIntensity: 0.85,
   })
-  mat.userData.rim = { value: rim }
+  mat.userData.rim = { value: new THREE.Color(rim) }
   mat.userData.rimPower = { value: 1 }
+  mat.userData.beat = { value: 0 }
+  mat.userData.beat2 = { value: 0 }
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uRim = mat.userData.rim
     shader.uniforms.uRimPower = mat.userData.rimPower
+    shader.uniforms.uBeat = mat.userData.beat
+    shader.uniforms.uBeat2 = mat.userData.beat2
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\nvarying float vUp;\n${hingeChunk}`)
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nobjectNormal = wingN(position, objectNormal);')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed = wing(position);\nvUp = objectNormal.y;')
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimPower;')
-      .replace(
-        '#include <dithering_fragment>',
-        `float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 3.0);
-        gl_FragColor.rgb += uRim * fres * 1.6 * uRimPower;
-        #include <dithering_fragment>`,
-      )
+      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimPower;\nvarying float vUp;')
+      // Weathered patina: upward faces catch a gold wear, undersides stay dark.
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb * 0.5, vec3(0.72, 0.52, 0.24), smoothstep(0.2, 0.95, vUp) * 0.45);')
+      .replace('#include <dithering_fragment>', rimChunk)
   }
+  mat.customProgramCacheKey = () => 'bronze-eagle'
   return mat
 }
 
-function flat(shape, depth = 0.07) {
-  // Extrude a (span u, chord v) outline into a thin plate lying in the xz plane.
-  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 1 })
-  geo.rotateX(Math.PI / 2)
-  geo.translate(0, depth / 2, 0)
-  return geo
+export function stoneMaterial() {
+  return new THREE.MeshStandardMaterial({ color: '#c9c5bc', roughness: 0.9, metalness: 0 })
 }
 
-function innerWingShape() {
-  const s = new THREE.Shape()
-  s.moveTo(0, 0.42)
-  s.lineTo(0.7, 0.4)
-  s.lineTo(1.35, 0.3)
-  s.lineTo(1.35, -0.42)
-  // Scalloped secondary feathers along the trailing edge.
-  for (let i = 0; i <= 4; i++) {
-    const u = 1.35 - (i + 0.5) * 0.27
-    s.lineTo(u, -0.62 - (i % 2) * 0.04)
-    s.lineTo(u - 0.13, -0.5)
-  }
-  s.lineTo(0, -0.5)
-  s.closePath()
-  return s
+// The white square pillar the eagle stands on; its top is at PILLAR_TOP.
+export function buildPillar(height = 4, mat = stoneMaterial()) {
+  const g = new THREE.Group()
+  const shaft = new THREE.Mesh(new THREE.BoxGeometry(PILLAR_W, height, PILLAR_W), mat)
+  shaft.position.y = PILLAR_TOP - height / 2 - 0.03
+  // Capital slab the talons grip, a little wider than the shaft.
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(PILLAR_W * 1.25, 0.045, PILLAR_W * 1.25), mat)
+  cap.position.set(0, PILLAR_TOP - 0.0225, -0.02)
+  g.add(shaft, cap)
+  return g
 }
 
-function outerWingShape() {
-  const s = new THREE.Shape()
-  s.moveTo(0, 0.3)
-  s.lineTo(0.8, 0.22)
-  s.lineTo(1.45, 0.08)
-  // Primary feathers fan out as separate "fingers" at the tip.
-  const fingers = 6
-  for (let i = 0; i < fingers; i++) {
-    const a = -0.15 - i * 0.2
-    const len = 2.05 - i * 0.07
-    s.lineTo(Math.cos(a) * len, Math.sin(a) * len * 0.55 + 0.05)
-    const na = a - 0.1
-    const nl = len - 0.35
-    s.lineTo(Math.cos(na) * nl, Math.sin(na) * nl * 0.55 + 0.02)
-  }
-  s.lineTo(0.9, -0.5)
-  s.lineTo(0, -0.42)
-  s.closePath()
-  return s
-}
-
-function tailShape() {
-  const s = new THREE.Shape()
-  s.moveTo(-0.22, 0)
-  s.lineTo(-0.55, -1.05)
-  for (let i = 0; i <= 6; i++) {
-    const u = -0.55 + (i * 1.1) / 6
-    s.lineTo(u, -1.15 - (i % 2) * 0.07)
-  }
-  s.lineTo(0.55, -1.05)
-  s.lineTo(0.22, 0)
-  s.closePath()
-  return s
-}
-
-export function buildEagle(material) {
+// Eagle group (model units; scale it in the scene). Resolves once loaded.
+export async function buildEagle(material = bronzeMaterial()) {
+  const geo = await loadGeometry()
   const eagle = new THREE.Group()
-  const add = (geo, parent = eagle) => {
-    const m = new THREE.Mesh(geo, material)
-    parent.add(m)
-    return m
-  }
-
-  // Body and chest.
-  const body = new THREE.IcosahedronGeometry(0.8, 1)
-  body.scale(0.78, 0.8, 1.45)
-  add(body)
-  const chest = new THREE.IcosahedronGeometry(0.66, 1)
-  chest.scale(0.82, 0.95, 0.85)
-  chest.translate(0, 0.18, 0.6)
-  add(chest)
-
-  // Head, brow and hooked beak.
-  const head = new THREE.Group()
-  head.position.set(0, 0.72, 1.2)
-  head.scale.setScalar(1.35)
-  eagle.add(head)
-  const skull = new THREE.IcosahedronGeometry(0.33, 1)
-  skull.scale(0.82, 0.86, 1.15)
-  add(skull, head)
-  const brow = new THREE.ConeGeometry(0.2, 0.36, 5)
-  brow.rotateX(Math.PI / 2)
-  brow.scale(1.3, 0.45, 1)
-  brow.translate(0, 0.14, 0.18)
-  add(brow, head)
-  const beak = new THREE.ConeGeometry(0.11, 0.42, 6)
-  beak.rotateX(Math.PI / 2 + 0.55)
-  beak.translate(0, -0.05, 0.42)
-  add(beak, head)
-
-  // Tail fan.
-  const tail = flat(tailShape(), 0.05)
-  tail.rotateX(-0.18)
-  tail.translate(0, -0.05, -0.85)
-  add(tail)
-
-  // Wings: shoulder pivot -> inner arm -> wrist pivot -> outer hand.
-  const wings = [-1, 1].map((side) => {
-    const shoulder = new THREE.Group()
-    shoulder.position.set(side * 0.34, 0.2, 0.25)
-    shoulder.scale.x = side
-    eagle.add(shoulder)
-    add(flat(innerWingShape()), shoulder)
-    const wrist = new THREE.Group()
-    wrist.position.set(1.33, 0, 0)
-    shoulder.add(wrist)
-    add(flat(outerWingShape(), 0.05), wrist)
-    return { shoulder, wrist, side }
-  })
-
-  eagle.userData.wings = wings
-  eagle.userData.head = head
+  const mesh = new THREE.Mesh(geo, material)
+  eagle.add(mesh)
+  eagle.userData = { mesh, material }
   return eagle
 }
 
-// Wing pose: `flap` 0..1 blends from the heraldic statue pose (wings raised
-// in a V with their faces toward the viewer) to a live flapping cycle at
-// phase `t` (radians), wings level.
+// flap 0..1: statue (wings frozen up) -> alive, beating at phase t.
 export function poseEagle(eagle, t, flap) {
-  for (const { shoulder, wrist, side } of eagle.userData.wings) {
-    // The left wing is the right one mirrored in x, so its z/y turns flip sign.
-    const beat = Math.sin(t)
-    shoulder.rotation.order = 'ZXY'
-    shoulder.rotation.x = THREE.MathUtils.lerp(-1.1, 0, flap)
-    shoulder.rotation.z = side * THREE.MathUtils.lerp(0.5, 0.1 + beat * 0.75, flap)
-    shoulder.rotation.y = side * THREE.MathUtils.lerp(0, 0.05 + beat * 0.08, flap)
-    wrist.rotation.z = side * THREE.MathUtils.lerp(0.35, -0.15 + Math.sin(t - 0.9) * 0.45, flap)
-  }
-  eagle.userData.head.rotation.x = -0.1 + Math.sin(t * 0.5) * 0.04 * (1 - flap)
+  const m = eagle.userData.material
+  const s = 0.5 - 0.5 * Math.cos(t) // 0 = wings up (statue pose), 1 = down
+  const s2 = 0.5 - 0.5 * Math.cos(t - 0.7)
+  m.userData.beat.value = flap * s * 1.35
+  m.userData.beat2.value = flap * (s2 * 0.55 - 0.1)
 }
 
-// Triangles of the eagle in its current pose, each tagged with a centroid,
-// a burst direction and a random seed, for the glass-shatter transition.
+// Triangles of the eagle, tagged in small clusters with a centroid, a burst
+// direction and a random seed, for the shatter transition.
 export function shardGeometry(eagle) {
   eagle.updateWorldMatrix(true, true)
   const inv = new THREE.Matrix4().copy(eagle.matrixWorld).invert()
@@ -190,17 +167,20 @@ export function shardGeometry(eagle) {
   const b = new THREE.Vector3()
   const c = new THREE.Vector3()
   eagle.traverse((o) => {
-    if (!o.isMesh) return
+    if (!o.isMesh || !o.visible) return
     m.multiplyMatrices(inv, o.matrixWorld)
     const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry
     const p = g.attributes.position
+    let dir, r, cen
     for (let i = 0; i < p.count; i += 3) {
       a.fromBufferAttribute(p, i).applyMatrix4(m)
       b.fromBufferAttribute(p, i + 1).applyMatrix4(m)
       c.fromBufferAttribute(p, i + 2).applyMatrix4(m)
-      const cen = a.clone().add(b).add(c).divideScalar(3)
-      const dir = cen.clone().normalize().add(new THREE.Vector3((Math.random() - 0.5) * 0.8, Math.random() * 0.6, (Math.random() - 0.5) * 0.8)).normalize()
-      const r = Math.random()
+      if (i % 36 === 0) {
+        cen = a.clone().add(b).add(c).divideScalar(3)
+        dir = cen.clone().normalize().add(new THREE.Vector3((Math.random() - 0.5) * 0.8, Math.random() * 0.6, (Math.random() - 0.5) * 0.8)).normalize()
+        r = Math.random()
+      }
       for (const v of [a, b, c]) {
         pos.push(v.x, v.y, v.z)
         centers.push(cen.x, cen.y, cen.z)
@@ -208,6 +188,7 @@ export function shardGeometry(eagle) {
         seeds.push(r)
       }
     }
+    if (g !== o.geometry) g.dispose()
   })
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
@@ -218,16 +199,16 @@ export function shardGeometry(eagle) {
   return geo
 }
 
-// Material for the shards: the sapphire look, with triangles flying out along
-// aDir and tumbling as uBurst goes 0 -> 1, and snapping back as it returns.
-export function shardMaterial(base) {
-  const mat = base.clone()
+// Shards: bronze with the rim, chunks flying out along aDir and tumbling as
+// uBurst goes 0 -> 1, snapping back as it returns. `scale` is the eagle's
+// scene scale so the burst distance reads the same at any size.
+export function shardMaterial(base, scale = 1) {
+  const mat = new THREE.MeshPhysicalMaterial({ color: '#7a5028', metalness: 1, roughness: 0.3, clearcoat: 0.5, side: THREE.DoubleSide, flatShading: true, envMapIntensity: 1.1 })
   mat.userData.burst = { value: 0 }
-  mat.userData.rim = base.userData.rim
-  mat.userData.rimPower = base.userData.rimPower
   mat.onBeforeCompile = (shader) => {
-    base.onBeforeCompile(shader)
     shader.uniforms.uBurst = mat.userData.burst
+    shader.uniforms.uRim = base.userData.rim
+    shader.uniforms.uRimPower = base.userData.rimPower
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -247,10 +228,12 @@ export function shardMaterial(base) {
         '#include <begin_vertex>',
         `float k = uBurst * (0.7 + aSeed * 0.6);
         mat3 R = rotAxis(vec3(aSeed - 0.5, 1.0, aDir.x), k * (4.0 + aSeed * 6.0));
-        vec3 transformed = R * (position - aCenter) * (1.0 - k * 0.3) + aCenter + aDir * k * (2.5 + aSeed * 3.5);`,
+        vec3 transformed = R * (position - aCenter) * (1.0 - k * 0.3) + aCenter + aDir * k * ${(0.4 / scale).toFixed(4)} * (2.5 + aSeed * 3.5);`,
       )
-      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>`)
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimPower;')
+      .replace('#include <dithering_fragment>', rimChunk)
   }
-  mat.customProgramCacheKey = () => 'shard'
+  mat.customProgramCacheKey = () => 'bronze-shard'
   return mat
 }

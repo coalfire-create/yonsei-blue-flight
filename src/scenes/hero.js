@@ -3,7 +3,9 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
-import { buildEagle, poseEagle, sapphireEnv, sapphireMaterial, shardGeometry, shardMaterial } from '../eagle.js'
+import { bronzeMaterial, buildEagle, buildPillar, poseEagle, sapphireEnv, shardGeometry, shardMaterial } from '../eagle.js'
+
+const S = 5 // eagle model units -> scene units (wingspan 5)
 
 // Night-to-dawn sky with a cyan horizon and drifting cloud bands.
 const skyFrag = /* glsl */ `
@@ -56,30 +58,37 @@ export class Hero {
     sky.renderOrder = -1
     this.scene.add(sky)
 
-    const key = new THREE.DirectionalLight('#bfe4ff', 2.2)
+    // Night: moon-blue key and rim, and the warm floodlights that light the
+    // statue from the plaza below.
+    const key = new THREE.DirectionalLight('#bfe4ff', 1.6)
     key.position.set(3, 5, 6)
-    const back = new THREE.DirectionalLight('#00d2ff', 3)
+    const back = new THREE.DirectionalLight('#00d2ff', 3.2)
     back.position.set(-4, 2, -5)
-    this.scene.add(key, back, new THREE.AmbientLight('#6f8cff', 0.4))
+    const flood = new THREE.SpotLight('#ffcf8a', 60, 30, 0.22, 0.8)
+    flood.position.set(2.5, 1, 8)
+    flood.target.position.set(0, 0.6, 0)
+    this.scene.add(key, back, flood, flood.target, new THREE.AmbientLight('#6f8cff', 0.35))
 
-    this.material = sapphireMaterial()
-    this.eagle = buildEagle(this.material)
+    // stage: drag rotation (pillar + eagle); pivot: the eagle's flight.
+    this.stage = new THREE.Group()
+    this.stage.position.y = -0.4
+    this.scene.add(this.stage)
+    const pillar = buildPillar(6, new THREE.MeshStandardMaterial({ color: '#8f8c86', roughness: 0.92 }))
+    pillar.scale.setScalar(S)
+    this.stage.add(pillar)
     this.pivot = new THREE.Group()
-    this.pivot.add(this.eagle)
-    this.scene.add(this.pivot)
+    this.stage.add(this.pivot)
 
-    // Halo ring the statue floats above.
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(2.2, 0.015, 8, 160),
-      new THREE.MeshBasicMaterial({ color: '#4facfe', transparent: true, opacity: 0.8 }),
-    )
-    ring.rotation.x = Math.PI / 2
-    ring.position.y = -1.6
-    this.ring = ring
-    this.scene.add(ring)
-
-    this.shardMat = shardMaterial(this.material)
+    this.material = bronzeMaterial()
+    this.shardMat = shardMaterial(this.material, S)
     this.shards = null
+    this.eagle = null
+    buildEagle(this.material).then((eagle) => {
+      eagle.scale.setScalar(S)
+      this.eagle = eagle
+      this.pivot.add(eagle)
+      this.onReady?.()
+    })
 
     this.composer = new EffectComposer(this.renderer)
     this.composer.addPass(new RenderPass(this.scene, this.camera))
@@ -131,15 +140,16 @@ export class Hero {
     const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
     const ray = new THREE.Raycaster()
     ray.setFromCamera(ndc, this.camera)
-    return ray.intersectObject(this.eagle, true).length > 0
+    return !!this.eagle && ray.intersectObject(this.eagle, true).length > 0
   }
 
   // Burst into glass shards, hang for a beat, then snap back together.
   shatter() {
-    if (this.shards) return
+    // Shards are cut from the rest pose, so only the statue can shatter.
+    if (this.shards || !this.eagle || this.progress > 0.04) return
     this.shards = new THREE.Mesh(shardGeometry(this.eagle), this.shardMat)
-    this.pivot.add(this.shards)
-    this.eagle.visible = false
+    this.eagle.userData.mesh.visible = false
+    this.eagle.add(this.shards)
     this.burstT = 0
   }
 
@@ -149,7 +159,9 @@ export class Hero {
     this.renderer.setSize(w, h, false)
     this.composer.setSize(w, h)
     this.camera.aspect = w / h
-    this.camera.position.z = w / h < 0.8 ? 17 : 11
+    const portrait = w / h < 0.8
+    this.camera.position.z = portrait ? 19 : 11.5
+    this.lookY = portrait ? -2.6 : -1.1
     this.camera.updateProjectionMatrix()
   }
 
@@ -164,18 +176,27 @@ export class Hero {
     // Idle: sway gently around facing the viewer.
     this.yaw += this.vYaw * 0.3
     this.yaw += (Math.sin(this.time * 0.35) * 0.35 - this.yaw) * dt * (Math.abs(this.vYaw) > 0.002 ? 0 : 0.4)
-    this.pivot.rotation.set(this.pitch * (1 - p), this.yaw * (1 - p * 0.9), 0)
+    // Rests in a three-quarter profile, like the statue seen from 백양로;
+    // turns to face the viewer as it takes off.
+    this.stage.rotation.set(this.pitch * (1 - p) * 0.5, (this.yaw - 0.7) * (1 - THREE.MathUtils.smoothstep(p, 0.05, 0.4)), 0)
+    // As it takes off the camera tilts up after it, leaving the pillar below.
+    this.camera.lookAt(0, this.lookY + p * 2.5, 0)
 
-    // Scroll: statue -> alive, flapping, and lifting off out of frame.
-    const flap = THREE.MathUtils.smoothstep(p, 0.05, 0.3)
-    const speed = 2.2 + flap * 5
-    this.phase = (this.phase ?? 0) + dt * speed
+    if (!this.eagle) {
+      this.composer.render()
+      return
+    }
+    // Scroll: bronze statue -> alive, beating its raised wings, lifting off
+    // the pillar toward the viewer and out over the top of the frame.
+    const flap = THREE.MathUtils.smoothstep(p, 0.05, 0.25)
+    const speed = 2.4 + flap * 4.5
+    // Statue holds the wings up (phase 0) until it wakes.
+    this.phase = flap > 0.001 ? (this.phase ?? 0) + dt * speed : 0
     poseEagle(this.eagle, this.phase, flap)
-    const lift = THREE.MathUtils.smoothstep(p, 0.35, 1)
-    this.pivot.position.set(0, -0.2 + Math.sin(this.time * 1.3) * 0.08 + lift * 9 + flap * Math.sin(this.phase) * -0.15, lift * 2.5)
-    this.eagle.rotation.x = -lift * 0.7
-    this.ring.material.opacity = 0.8 * (1 - flap)
-    this.ring.scale.setScalar(1 + flap * 0.6)
+    const lift = THREE.MathUtils.smoothstep(p, 0.2, 1)
+    const bob = flap * (0.5 - 0.5 * Math.cos(this.phase)) * 0.35
+    this.pivot.position.set(0, lift * lift * 9 + lift * 0.6 + bob, lift * 3)
+    this.eagle.rotation.x = lift * 0.45
 
     if (this.shards) {
       this.burstT += dt
@@ -185,13 +206,13 @@ export class Hero {
       const back = THREE.MathUtils.smoothstep(t, 0.8, 1.5)
       this.shardMat.userData.burst.value = out * (1 - back)
       if (t > 1.5) {
-        this.pivot.remove(this.shards)
+        this.eagle.remove(this.shards)
         this.shards.geometry.dispose()
         this.shards = null
-        this.eagle.visible = true
+        this.eagle.userData.mesh.visible = true
       }
     }
-    this.material.userData.rimPower.value = 1 + 0.4 * Math.sin(this.time * 2)
+    this.material.userData.rimPower.value = 0.7 + 0.3 * Math.sin(this.time * 2)
     this.composer.render()
   }
 }

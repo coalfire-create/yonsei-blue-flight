@@ -3,7 +3,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
-import { buildEagle, poseEagle, sapphireEnv, sapphireMaterial } from '../eagle.js'
+import { buildEagle, poseEagle, sapphireEnv } from '../eagle.js'
 
 // Three portal gates (admissions / research / giving) with swirling light,
 // and the "Fly with Yonsei" ending: the eagle launches up through the sky.
@@ -66,11 +66,16 @@ export class Outro {
       return g
     })
 
-    this.material = sapphireMaterial()
-    this.eagle = buildEagle(this.material)
-    this.eagle.scale.setScalar(0.55)
+    // Placeholder group until the sculpt loads, so the launch logic can run.
+    this.eagle = new THREE.Group()
     this.eagle.position.set(0, 3.1, 0)
     this.scene.add(this.eagle)
+    buildEagle().then((e) => {
+      e.scale.setScalar(2.8)
+      e.position.y = -0.3
+      this.bird = e
+      this.eagle.add(e)
+    })
     const key = new THREE.DirectionalLight('#bfe4ff', 2)
     key.position.set(2, 5, 6)
     this.scene.add(key, new THREE.AmbientLight('#6f8cff', 0.5))
@@ -147,7 +152,7 @@ export class Outro {
       p.rotation.y = Math.sin(this.time * 0.5 + p.position.x) * 0.15
     }
     this.phase = (this.phase ?? 0) + dt * (this.launch ? 9 : 3)
-    poseEagle(this.eagle, this.phase, 1)
+    if (this.bird) poseEagle(this.bird, this.phase, 1)
     if (this.launch) {
       this.launch += dt
       const t = this.launch
