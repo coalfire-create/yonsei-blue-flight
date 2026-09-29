@@ -140,22 +140,48 @@
         </div>
       </section>
 
-      <!-- 06 OUTRO -->
+      <!-- 06 OUTRO: dusk over the whole campus -->
       <section class="scene outro" id="outro">
         <div class="scene__sticky">
           <canvas class="scene__canvas" id="cvOutro"></canvas>
-          <div class="portal-labels" id="portalLabels"></div>
-          <div class="outro__copy">
-            <span class="kicker">05 — LAUNCH INTO FUTURE</span>
-            <h2 class="outro__title">연세와 함께,<br />날아오르세요.</h2>
-            <div class="outro__actions">
-              <button class="btn btn--sky" id="flyBtn" type="button">Fly with Yonsei ↑</button>
-              <button class="btn btn--line" id="auraBtn" type="button">나만의 Aura Wing 카드</button>
+          <div class="outro__mark" aria-hidden="true">YONSEI</div>
+          <div class="outro__inner">
+            <div class="outro__head">
+              <span class="kicker">05 — YOUR FLIGHT</span>
+              <h2 class="outro__title"><em>Your flight</em><br />begins here.</h2>
+              <p class="outro__ko">1885년부터 이어진 비상, 이제 당신의 차례입니다.</p>
+              <div class="outro__actions">
+                <button class="btn btn--sky" id="flyBtn" type="button">Fly with Yonsei <span aria-hidden="true">↗</span></button>
+                <button class="btn btn--line" id="auraBtn" type="button">나만의 Aura Wing 카드</button>
+              </div>
             </div>
+            <nav class="dests" aria-label="바로가기">
+              <a class="dest" href="https://admission.yonsei.ac.kr" target="_blank" rel="noopener">
+                <span class="dest__no">01</span>
+                <b class="dest__ko">입학</b>
+                <span class="dest__en">Admissions</span>
+                <span class="dest__txt">모집 요강과 전형 안내, 입학 설명회 일정</span>
+                <span class="dest__arrow" aria-hidden="true">↗</span>
+              </a>
+              <a class="dest" href="https://www.yonsei.ac.kr" target="_blank" rel="noopener">
+                <span class="dest__no">02</span>
+                <b class="dest__ko">연구</b>
+                <span class="dest__en">Research</span>
+                <span class="dest__txt">신촌에서 송도, 세계로 이어지는 연구</span>
+                <span class="dest__arrow" aria-hidden="true">↗</span>
+              </a>
+              <a class="dest" href="https://www.yonsei.ac.kr" target="_blank" rel="noopener">
+                <span class="dest__no">03</span>
+                <b class="dest__ko">기부</b>
+                <span class="dest__en">Giving</span>
+                <span class="dest__txt">다음 세대의 비상을 함께 여는 길</span>
+                <span class="dest__arrow" aria-hidden="true">↗</span>
+              </a>
+            </nav>
           </div>
           <footer class="footer">
             <span>연세대학교 · 서울 서대문구 연세로 50</span>
-            <span>지도: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</span>
+            <span>캠퍼스 3D: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · AWS Terrain Tiles</span>
           </footer>
         </div>
       </section>

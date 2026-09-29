@@ -3,34 +3,10 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
+import { backdrop } from '../backdrop.js'
 import { bronzeMaterial, buildEagle, buildPillar, poseEagle, sapphireEnv, shardGeometry, shardMaterial } from '../eagle.js'
 
 const S = 5 // eagle model units -> scene units (wingspan 5)
-
-// Night-to-dawn sky with a cyan horizon and drifting cloud bands.
-const skyFrag = /* glsl */ `
-  uniform float uTime;
-  uniform float uLift;
-  varying vec2 vUv;
-  float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-  float noise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f);
-    return mix(mix(hash(i), hash(i+vec2(1,0)), u.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y); }
-  float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++){ v += a*noise(p); p *= 2.02; a *= 0.5; } return v; }
-  void main(){
-    float y = vUv.y + uLift * 0.35;
-    vec3 top = vec3(0.012, 0.03, 0.08);
-    vec3 mid = vec3(0.0, 0.13, 0.33);
-    vec3 horizon = vec3(0.12, 0.62, 0.95);
-    vec3 col = mix(horizon, mid, smoothstep(0.02, 0.38, y));
-    col = mix(col, top, smoothstep(0.38, 0.95, y));
-    float band = fbm(vec2(vUv.x * 3.0 + uTime * 0.015, y * 7.0));
-    col += vec3(0.25, 0.55, 0.9) * smoothstep(0.55, 0.9, band) * 0.18 * smoothstep(0.7, 0.1, y);
-    vec2 g = floor(vUv * vec2(260.0, 160.0));
-    float star = step(0.997, hash(g)) * smoothstep(0.45, 0.9, y);
-    col += star * 0.8;
-    gl_FragColor = vec4(col, 1.0);
-  }
-`
 
 export class Hero {
   constructor(canvas) {
@@ -44,30 +20,20 @@ export class Hero {
     this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100)
     this.camera.position.set(0, 1.4, 11)
 
-    this.skyUniforms = { uTime: { value: 0 }, uLift: { value: 0 } }
-    const sky = new THREE.Mesh(
-      new THREE.PlaneGeometry(2, 2),
-      new THREE.ShaderMaterial({
-        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.9999, 1.0); }',
-        fragmentShader: skyFrag,
-        uniforms: this.skyUniforms,
-        depthWrite: false,
-      }),
-    )
-    sky.frustumCulled = false
-    sky.renderOrder = -1
-    this.scene.add(sky)
+    // Behind the statue: the real campus up 백양로 toward 안산, baked from
+    // the flight scene's 3D world at golden hour.
+    this.bg = backdrop('hero')
+    this.scene.add(this.bg.mesh)
 
-    // Night: moon-blue key and rim, and the warm floodlights that light the
-    // statue from the plaza below.
-    const key = new THREE.DirectionalLight('#bfe4ff', 1.6)
+    // Golden hour to match the backdrop: low warm sun, cool sky fill.
+    const key = new THREE.DirectionalLight('#ffd3a0', 2.4)
     key.position.set(3, 5, 6)
-    const back = new THREE.DirectionalLight('#00d2ff', 3.2)
-    back.position.set(-4, 2, -5)
+    const back = new THREE.DirectionalLight('#ffe7c2', 2.6)
+    back.position.set(-5, 3, -5)
     const flood = new THREE.SpotLight('#ffcf8a', 60, 30, 0.22, 0.8)
     flood.position.set(2.5, 1, 8)
     flood.target.position.set(0, 0.6, 0)
-    this.scene.add(key, back, flood, flood.target, new THREE.AmbientLight('#6f8cff', 0.35))
+    this.scene.add(key, back, flood, flood.target, new THREE.HemisphereLight('#bcd6f5', '#6b5a44', 0.7))
 
     // stage: drag rotation (pillar + eagle); pivot: the eagle's flight.
     this.stage = new THREE.Group()
@@ -79,7 +45,7 @@ export class Hero {
     this.pivot = new THREE.Group()
     this.stage.add(this.pivot)
 
-    this.material = bronzeMaterial()
+    this.material = bronzeMaterial({ rim: '#ffd3a0' })
     this.shardMat = shardMaterial(this.material, S)
     this.shards = null
     this.eagle = null
@@ -158,6 +124,7 @@ export class Hero {
     const h = this.canvas.clientHeight
     this.renderer.setSize(w, h, false)
     this.composer.setSize(w, h)
+    this.bg.resize(w, h)
     this.camera.aspect = w / h
     const portrait = w / h < 0.8
     this.camera.position.z = portrait ? 19 : 11.5
@@ -168,8 +135,12 @@ export class Hero {
   render(dt) {
     this.time += dt
     const p = this.progress
-    this.skyUniforms.uTime.value = this.time
-    this.skyUniforms.uLift.value = p
+    // The campus drifts with the drag and falls away as the eagle climbs.
+    const bu = this.bg.u
+    bu.uOff.value.set(-this.yaw * 0.025, p * 0.1)
+    bu.uZoom.value = 1.04 + p * 0.12
+    bu.uDark.value = 0.12 + p * 0.25
+    this.bg.update(dt)
 
     // Drag inertia; idle slow turn.
     this.vYaw *= Math.pow(0.05, dt)
@@ -212,7 +183,7 @@ export class Hero {
         this.eagle.userData.mesh.visible = true
       }
     }
-    this.material.userData.rimPower.value = 0.7 + 0.3 * Math.sin(this.time * 2)
+    this.material.userData.rimPower.value = 0.45 + 0.15 * Math.sin(this.time * 2)
     this.composer.render()
   }
 }

@@ -6,7 +6,7 @@ import { Baekyang } from './scenes/baekyang.js'
 import { ERAS, Underwood } from './scenes/underwood.js'
 import { Globe, HUBS } from './scenes/globe.js'
 import { Akaraka } from './scenes/akaraka.js'
-import { Outro, PORTALS } from './scenes/outro.js'
+import { Outro } from './scenes/outro.js'
 import { drawAura } from './aura.js'
 import { INFO, KIND } from './data/info.js'
 
@@ -88,9 +88,10 @@ async function boot() {
     el.innerHTML = parts.map((p) => `<span class="line"><span class="line__in">${p.trim()}</span></span>`).join('')
   }
   document.querySelectorAll('.flight__head .h2, .global__copy .h2, .akaraka__title, .outro__title').forEach(splitLines)
+  document.querySelectorAll('.outro__ko, .dest').forEach((el) => el.classList.add('outro-extra'))
   scenes.slice(1).forEach((s) => {
     s.lines = s.el.querySelectorAll('.line__in')
-    s.extras = s.el.querySelectorAll(':scope .scene__sticky > div > .kicker, :scope .scene__sticky > div > .body:not(.uw__body), :scope .outro__actions')
+    s.extras = s.el.querySelectorAll(':scope .scene__sticky > div > .kicker, :scope .scene__sticky > div > .body:not(.uw__body), :scope .outro__head > .kicker, :scope .outro-extra, :scope .outro__actions')
     gsap.set(s.lines, { yPercent: 110 })
     gsap.set(s.extras, { opacity: 0, y: 18 })
     s.shown = false
@@ -329,18 +330,7 @@ async function boot() {
     mute.classList.toggle('is-off', akaraka.muted)
   })
 
-  /* Outro: portals, launch and the Aura Wing card. */
-  const portalWrap = document.getElementById('portalLabels')
-  const portalEls = PORTALS.map((p) => {
-    const a = document.createElement('a')
-    a.className = 'portal-label'
-    a.href = p.href
-    a.target = '_blank'
-    a.rel = 'noopener'
-    a.innerHTML = `<b>${p.label}</b><span>${p.en}</span>`
-    portalWrap.appendChild(a)
-    return a
-  })
+  /* Outro: launch and the Aura Wing card. */
   document.getElementById('flyBtn').addEventListener('click', () => outro.fly())
   const aura = document.getElementById('aura')
   const auraCanvas = document.getElementById('auraCanvas')
@@ -425,7 +415,7 @@ async function boot() {
         el.style.transform = `translate(${Math.min(s.x, innerWidth - el.offsetWidth - 12)}px, ${s.y + (i === 0 ? -22 : i === 1 ? 10 : 0)}px)`
       })
     }
-    if (scenes[5].on) outro.portalScreens().forEach((s, i) => (portalEls[i].style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, 0)`))
+    outro.progress = progress(scenes[5].el)
   })
 }
 

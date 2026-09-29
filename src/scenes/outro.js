@@ -1,35 +1,36 @@
 import * as THREE from 'three'
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
-import { buildEagle, poseEagle, sapphireEnv } from '../eagle.js'
+import { backdrop } from '../backdrop.js'
+import { bronzeMaterial, buildEagle, poseEagle, sapphireEnv } from '../eagle.js'
 
-// Three portal gates (admissions / research / giving) with swirling light,
-// and the "Fly with Yonsei" ending: the eagle launches up through the sky.
+// Finale: dusk falls over the whole campus (a baked still of the flight
+// scene's world) while the bronze eagle soars in a wide figure-eight above
+// it, drawing a golden ribbon of light. "Fly with Yonsei" sends it diving
+// past the viewer and back into the sky.
 
-const portalFrag = /* glsl */ `
-  uniform float uTime;
-  uniform vec3 uColor;
-  uniform float uHover;
-  varying vec2 vUv;
+const TRAIL = 110
+
+const ribbonVert = /* glsl */ `
+  attribute float aT;
+  attribute float aSide;
+  varying float vT;
+  varying float vSide;
   void main(){
-    vec2 p = vUv * 2.0 - 1.0;
-    float r = length(p);
-    float a = atan(p.y, p.x);
-    float swirl = sin(a * 5.0 + r * 14.0 - uTime * (2.5 + uHover * 3.0)) * 0.5 + 0.5;
-    float core = smoothstep(1.0, 0.0, r);
-    vec3 col = uColor * (0.25 + swirl * 0.6) * core + vec3(1.0) * pow(core, 6.0) * (0.4 + uHover);
-    float alpha = smoothstep(1.0, 0.92, r) * (0.55 + core * 0.45);
-    gl_FragColor = vec4(col * (1.0 + uHover * 0.8), alpha);
+    vT = aT;
+    vSide = aSide;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `
-
-export const PORTALS = [
-  { key: 'admission', label: '입학', en: 'ADMISSIONS', href: 'https://admission.yonsei.ac.kr', color: '#00d2ff' },
-  { key: 'research', label: '연구', en: 'RESEARCH', href: 'https://www.yonsei.ac.kr', color: '#4facfe' },
-  { key: 'giving', label: '기부', en: 'GIVING', href: 'https://www.yonsei.ac.kr', color: '#7fe0a0' },
-]
+const ribbonFrag = /* glsl */ `
+  uniform float uGlow;
+  varying float vT;
+  varying float vSide;
+  void main(){
+    float edge = 1.0 - abs(vSide);
+    float a = pow(vT, 1.6) * (0.25 + edge * 0.75) * uGlow;
+    vec3 c = mix(vec3(1.0, 0.55, 0.2), vec3(1.0, 0.92, 0.7), vT);
+    gl_FragColor = vec4(c * a, a);
+  }
+`
 
 export class Outro {
   constructor(canvas) {
@@ -39,140 +40,170 @@ export class Outro {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.scene = new THREE.Scene()
     this.scene.environment = sapphireEnv(this.renderer)
-    this.scene.background = new THREE.Color('#050c1a')
-    this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200)
-    this.camera.position.set(0, 1.2, 14)
+    this.scene.environmentIntensity = 0.6
+    this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200)
+    this.camera.position.set(0, 0, 16)
     this.time = 0
     this.launch = 0
+    this.progress = 0
 
-    this.portals = PORTALS.map((p, i) => {
-      const g = new THREE.Group()
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.06, 12, 96), new THREE.MeshStandardMaterial({ color: '#cfe3ff', metalness: 1, roughness: 0.15 }))
-      const uni = { uTime: { value: 0 }, uColor: { value: new THREE.Color(p.color) }, uHover: { value: 0 } }
-      const disc = new THREE.Mesh(
-        new THREE.CircleGeometry(1.45, 64),
-        new THREE.ShaderMaterial({
-          vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-          fragmentShader: portalFrag,
-          uniforms: uni,
-          transparent: true,
-          depthWrite: false,
-        }),
-      )
-      g.add(ring, disc)
-      g.position.set((i - 1) * 4.2, -0.3, 0)
-      g.userData = { ...p, uni, disc }
-      this.scene.add(g)
-      return g
-    })
+    this.bg = backdrop('outro')
+    this.scene.add(this.bg.mesh)
 
-    // Placeholder group until the sculpt loads, so the launch logic can run.
+    // Last light from the west, a cool sky fill.
+    const sun = new THREE.DirectionalLight('#ffbf7a', 4.2)
+    sun.position.set(-6, 2, 3)
+    const rim = new THREE.DirectionalLight('#9fc6ff', 2)
+    rim.position.set(4, 3, -6)
+    this.scene.add(sun, rim, new THREE.HemisphereLight('#7f9fd6', '#3a2a1c', 0.6))
+
     this.eagle = new THREE.Group()
-    this.eagle.position.set(0, 3.1, 0)
     this.scene.add(this.eagle)
-    buildEagle().then((e) => {
-      e.scale.setScalar(2.8)
-      e.position.y = -0.3
+    this.mat = bronzeMaterial({ rim: '#ffb870' })
+    buildEagle(this.mat).then((e) => {
+      e.scale.setScalar(3.4)
+      e.rotation.x = 0.55 // level the landing pose out into flight
       this.bird = e
       this.eagle.add(e)
     })
-    const key = new THREE.DirectionalLight('#bfe4ff', 2)
-    key.position.set(2, 5, 6)
-    this.scene.add(key, new THREE.AmbientLight('#6f8cff', 0.5))
 
-    // Light trail behind the launching eagle.
-    this.trailPts = []
-    this.trail = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: '#00d2ff', transparent: true, opacity: 0.9 }))
-    this.scene.add(this.trail)
+    // Golden ribbon trailing the eagle.
+    const pos = new Float32Array(TRAIL * 2 * 3)
+    const t = new Float32Array(TRAIL * 2)
+    const side = new Float32Array(TRAIL * 2)
+    for (let i = 0; i < TRAIL; i++) {
+      t[i * 2] = t[i * 2 + 1] = i / (TRAIL - 1)
+      side[i * 2] = -1
+      side[i * 2 + 1] = 1
+    }
+    const idx = []
+    for (let i = 0; i < TRAIL - 1; i++) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2)
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    g.setAttribute('aT', new THREE.BufferAttribute(t, 1))
+    g.setAttribute('aSide', new THREE.BufferAttribute(side, 1))
+    g.setIndex(idx)
+    this.ribbonU = { uGlow: { value: 1 } }
+    this.ribbon = new THREE.Mesh(
+      g,
+      new THREE.ShaderMaterial({ vertexShader: ribbonVert, fragmentShader: ribbonFrag, uniforms: this.ribbonU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
+    )
+    this.ribbon.frustumCulled = false
+    this.scene.add(this.ribbon)
+    this.trail = []
 
-    // Starfield.
-    const stars = new Float32Array(1500 * 3)
-    for (let i = 0; i < 1500; i++) stars.set([(Math.random() - 0.5) * 120, Math.random() * 80 - 10, -30 - Math.random() * 60], i * 3)
-    const sg = new THREE.BufferGeometry()
-    sg.setAttribute('position', new THREE.BufferAttribute(stars, 3))
-    this.scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: '#bcdcff', size: 0.15 })))
+    // Sparks shed from the wings.
+    this.sparkGeo = new THREE.BufferGeometry()
+    this.sparkGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(240 * 3).fill(-999), 3))
+    this.sparks = new THREE.Points(this.sparkGeo, new THREE.PointsMaterial({ color: '#ffd9a0', size: 0.07, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }))
+    this.sparks.frustumCulled = false
+    this.scene.add(this.sparks)
+    this.sparkLife = new Float32Array(240)
+    this.sparkVel = new Float32Array(240 * 3)
+    this.nextSpark = 0
 
-    this.composer = new EffectComposer(this.renderer)
-    this.composer.addPass(new RenderPass(this.scene, this.camera))
-    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.8, 0.5, 0.4))
-    this.composer.addPass(new OutputPass())
-
-    this.#bindPortals()
     this.resize()
     addEventListener('resize', () => this.resize())
   }
 
-  #bindPortals() {
-    const ray = new THREE.Raycaster()
-    const pick = (e) => {
-      const r = this.canvas.getBoundingClientRect()
-      ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), this.camera)
-      const hit = ray.intersectObjects(this.portals.map((p) => p.userData.disc))[0]
-      return hit ? this.portals.find((p) => p.userData.disc === hit.object) : null
-    }
-    this.canvas.addEventListener('pointermove', (e) => {
-      this.hovered = pick(e)
-      this.canvas.style.cursor = this.hovered ? 'pointer' : ''
-    })
-    this.canvas.addEventListener('click', (e) => {
-      const p = pick(e)
-      if (p) window.open(p.userData.href, '_blank', 'noopener')
-    })
-  }
-
   fly() {
+    if (this.launch) return
     this.launch = 0.0001
-    this.trailPts = []
-  }
-
-  // Screen positions of the portal labels.
-  portalScreens() {
-    return this.portals.map((p) => {
-      const v = p.position.clone().add(new THREE.Vector3(0, -2.1, 0)).project(this.camera)
-      return { x: (v.x * 0.5 + 0.5) * this.canvas.clientWidth, y: (-v.y * 0.5 + 0.5) * this.canvas.clientHeight }
-    })
   }
 
   resize() {
     const w = this.canvas.clientWidth
     const h = this.canvas.clientHeight
     this.renderer.setSize(w, h, false)
-    this.composer.setSize(w, h)
+    this.bg.resize(w, h)
     this.camera.aspect = w / h
-    this.camera.position.z = w / h < 0.8 ? 34 : 14
+    this.portrait = w / h < 0.8
+    this.camera.position.z = this.portrait ? 26 : 16
     this.camera.updateProjectionMatrix()
+  }
+
+  // The soaring path: a wide, tilted figure-eight in the upper sky.
+  #path(t, out) {
+    const w = this.portrait ? 3.4 : 6.8
+    return out.set(Math.sin(t) * w, 2.4 + Math.sin(t * 2) * 0.8 + (this.portrait ? 3 : 0), -2 + Math.sin(t * 2) * 2.2)
   }
 
   render(dt) {
     this.time += dt
-    for (const p of this.portals) {
-      const u = p.userData.uni
-      u.uTime.value = this.time
-      u.uHover.value += ((this.hovered === p ? 1 : 0) - u.uHover.value) * Math.min(1, dt * 6)
-      p.rotation.y = Math.sin(this.time * 0.5 + p.position.x) * 0.15
-    }
-    this.phase = (this.phase ?? 0) + dt * (this.launch ? 9 : 3)
-    if (this.bird) poseEagle(this.bird, this.phase, 1)
+    const p = this.progress
+    // Dusk deepens as you settle into the finale.
+    const u = this.bg.u
+    u.uDark.value = 0.12 + p * 0.2
+    u.uWarm.value = 0.9
+    u.uZoom.value = 1.05 + Math.min(this.time, 60) * 0.002 + p * 0.05
+    u.uOff.value.set(Math.sin(this.time * 0.05) * 0.01, 0.02 - p * 0.03)
+    this.bg.update(dt)
+
+    const s = this.time * 0.22
+    const here = this.#path(s, new THREE.Vector3())
+    const next = this.#path(s + 0.02, new THREE.Vector3())
     if (this.launch) {
+      // Dive toward the viewer and sweep up past the camera, then glide
+      // back in onto the path.
       this.launch += dt
-      const t = this.launch
-      // Crouch, then rocket up and away with a sweeping arc.
-      const up = Math.max(0, t - 0.25)
-      this.eagle.position.set(Math.sin(up * 1.6) * 2.5, 3.1 + up * up * 9, -up * 6)
-      this.eagle.rotation.set(-0.9 * Math.min(1, up * 2), 0, Math.sin(up * 1.6) * 0.4)
-      this.trailPts.push(this.eagle.position.clone())
-      if (this.trailPts.length > 120) this.trailPts.shift()
-      this.trail.geometry.setFromPoints(this.trailPts)
-      if (t > 4) {
-        this.launch = 0
-        this.eagle.position.set(0, 3.1, 0)
-        this.eagle.rotation.set(0, 0, 0)
-        this.trailPts = []
-        this.trail.geometry.setFromPoints([])
-      }
-    } else {
-      this.eagle.position.y = 3.1 + Math.sin(this.time * 1.4) * 0.12
+      const k = this.launch
+      const out = THREE.MathUtils.smootherstep(k, 0, 1.6)
+      const back = THREE.MathUtils.smootherstep(k, 2.4, 4.2)
+      const dive = new THREE.Vector3(0, -1 + out * 9, 13 * out)
+      const w = Math.min(out, 1 - back)
+      here.lerp(dive, w)
+      next.lerp(dive.clone().add(new THREE.Vector3(0, 0.6, 0.5)), w)
+      if (k > 4.3) this.launch = 0
     }
-    this.composer.render()
+    this.eagle.position.lerp(here, this.placed ? 1 - Math.exp(-dt * 6) : 1)
+    this.placed = true
+    const vel = next.sub(here)
+    this.eagle.lookAt(this.eagle.position.clone().add(vel))
+    const turn = Math.cos(s) * (this.portrait ? 0.4 : 0.55)
+    this.bank = (this.bank ?? 0) + (-turn - (this.bank ?? 0)) * (1 - Math.exp(-dt * 3))
+    this.eagle.rotateZ(this.bank)
+    if (this.bird) {
+      // Glide, then a few strong beats on each climb (and on launch).
+      const climb = Math.max(0, Math.cos(s * 2)) + (this.launch ? 1 : 0)
+      this.phase = (this.phase ?? 0) + dt * (2 + climb * 5)
+      poseEagle(this.bird, this.phase, 0.35 + Math.min(1, climb) * 0.65)
+    }
+
+    // Ribbon: newest point at the eagle, widening toward it.
+    this.trail.unshift(this.eagle.position.clone().add(new THREE.Vector3(0, -0.1, 0)))
+    if (this.trail.length > TRAIL) this.trail.pop()
+    const pa = this.ribbon.geometry.attributes.position
+    const camDir = new THREE.Vector3()
+    for (let i = 0; i < TRAIL; i++) {
+      const a = this.trail[Math.min(i, this.trail.length - 1)]
+      const b = this.trail[Math.min(i + 1, this.trail.length - 1)]
+      const dir = a.clone().sub(b)
+      camDir.copy(this.camera.position).sub(a)
+      const side = dir.cross(camDir)
+      if (side.lengthSq() > 1e-10) side.normalize().multiplyScalar(0.02 + (1 - i / TRAIL) * 0.22)
+      const j = TRAIL - 1 - i // aT runs 0 (tail) -> 1 (head)
+      pa.setXYZ(j * 2, a.x + side.x, a.y + side.y, a.z + side.z)
+      pa.setXYZ(j * 2 + 1, a.x - side.x, a.y - side.y, a.z - side.z)
+    }
+    pa.needsUpdate = true
+
+    // Sparks.
+    const sp = this.sparkGeo.attributes.position
+    const e = this.eagle.position
+    for (let q = 0; q < (this.launch ? 6 : 2); q++) {
+      const i = this.nextSpark++ % 240
+      sp.setXYZ(i, e.x + (Math.random() - 0.5) * 1.6, e.y + (Math.random() - 0.5) * 0.4, e.z + (Math.random() - 0.5) * 0.6)
+      this.sparkVel.set([(Math.random() - 0.5) * 0.3, -0.3 - Math.random() * 0.4, (Math.random() - 0.5) * 0.3], i * 3)
+      this.sparkLife[i] = 1
+    }
+    for (let i = 0; i < 240; i++) {
+      if (this.sparkLife[i] <= 0) continue
+      this.sparkLife[i] -= dt * 0.6
+      if (this.sparkLife[i] <= 0) sp.setXYZ(i, 0, -999, 0)
+      else sp.setXYZ(i, sp.getX(i) + this.sparkVel[i * 3] * dt, sp.getY(i) + this.sparkVel[i * 3 + 1] * dt, sp.getZ(i) + this.sparkVel[i * 3 + 2] * dt)
+    }
+    sp.needsUpdate = true
+    this.mat.userData.rimPower.value = 0.5 + (this.launch ? 0.6 : 0)
+    this.renderer.render(this.scene, this.camera)
   }
 }

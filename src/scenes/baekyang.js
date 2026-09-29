@@ -773,6 +773,30 @@ export class Baekyang {
     this.camera.updateProjectionMatrix()
   }
 
+  // A still of the campus (used to bake the hero and finale backdrops):
+  // the flying eagle, statue and lock-on boxes are left out.
+  still(pos, look, { w = 2400, h = 1500, fov = 50, statue = false } = {}) {
+    const keep = [this.flier.visible, this.statue.visible]
+    this.flier.visible = false
+    this.statue.visible = statue
+    for (const t of this.targets) if (t.box) t.box.visible = false
+    this.renderer.setPixelRatio(1)
+    this.renderer.setSize(w, h, false)
+    this.camera.aspect = w / h
+    this.camera.fov = fov
+    this.camera.updateProjectionMatrix()
+    this.camera.position.set(...pos)
+    this.camera.lookAt(...look)
+    this.sun.target.position.set(...look)
+    this.sun.position.set(...look).addScaledVector(SUN, 900)
+    this.renderer.render(this.scene, this.camera)
+    const url = this.canvas.toDataURL('image/jpeg', 0.88)
+    ;[this.flier.visible, this.statue.visible] = keep
+    for (const t of this.targets) if (t.box) t.box.visible = true
+    this.resize()
+    return url
+  }
+
   // Screen position of a world point, or null if behind the camera.
   screen(v) {
     const p = v.clone().project(this.camera)
