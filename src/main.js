@@ -37,7 +37,10 @@ async function boot() {
   const c = { v: 0 }
   const paint = () => ((num.textContent = Math.round(c.v)), (bar.style.transform = `scaleX(${c.v / 100})`))
   const tween = gsap.to(c, { v: 100, duration: 1.4, ease: 'power2.inOut', onUpdate: paint })
-  await Promise.race([Promise.all([document.fonts.load('800 60px "Syne"', 'AKARAKA'), document.fonts.load('700 20px "Space Grotesk"', 'YONSEI')]), new Promise((r) => setTimeout(r, 2500))])
+  await Promise.race([
+    Promise.all([document.fonts.load('400 60px "Instrument Serif"', 'Beyond'), document.fonts.load('italic 400 60px "Instrument Serif"', 'Eternity'), document.fonts.load('800 60px "Inter Tight"', 'AKARAKA'), document.fonts.load('500 12px "JetBrains Mono"', 'SPEED')]),
+    new Promise((r) => setTimeout(r, 2500)),
+  ])
 
   // Mobile browsers change innerHeight as the address bar slides; only take a
   // new viewport height when the width changes.
@@ -63,9 +66,68 @@ async function boot() {
   ]
   const io = new IntersectionObserver((es) => es.forEach((e) => (scenes.find((s) => s.el === e.target).on = e.isIntersecting)), { rootMargin: '5% 0px' })
   scenes.forEach((s) => io.observe(s.el))
+  // Chapters overlap by one screen (the next slides up over the last), so a
+  // chapter's own story plays out before the next one starts to cover it.
   const progress = (el) => {
     const r = el.getBoundingClientRect()
-    return clamp01(-r.top / Math.max(1, r.height - viewH))
+    const last = el === scenes.at(-1).el
+    return clamp01(-r.top / Math.max(1, r.height - viewH * (last ? 1 : 2)))
+  }
+  scenes.forEach((s, i) => {
+    s.el.style.zIndex = i + 1
+    s.sticky = s.el.querySelector('.scene__sticky')
+    s.shade = document.createElement('div')
+    s.shade.className = 'scene__shade'
+    s.sticky.appendChild(s.shade)
+  })
+
+  // Headlines rise line by line, behind a mask, as their chapter arrives.
+  const splitLines = (el) => {
+    const parts = el.innerHTML.split(/<br\s*\/?>/i)
+    el.innerHTML = parts.map((p) => `<span class="line"><span class="line__in">${p.trim()}</span></span>`).join('')
+  }
+  document.querySelectorAll('.flight__head .h2, .global__copy .h2, .akaraka__title, .outro__title').forEach(splitLines)
+  scenes.slice(1).forEach((s) => {
+    s.lines = s.el.querySelectorAll('.line__in')
+    s.extras = s.el.querySelectorAll(':scope .scene__sticky > div > .kicker, :scope .scene__sticky > div > .body:not(.uw__body), :scope .outro__actions')
+    gsap.set(s.lines, { yPercent: 110 })
+    gsap.set(s.extras, { opacity: 0, y: 18 })
+    s.shown = false
+  })
+  const reveal = (s, on) => {
+    if (on === s.shown) return
+    s.shown = on
+    if (on) {
+      gsap.to(s.lines, { yPercent: 0, duration: 1.2, stagger: 0.09, ease: 'expo.out', overwrite: true })
+      gsap.to(s.extras, { opacity: 1, y: 0, duration: 1, stagger: 0.08, delay: 0.25, ease: 'power3.out', overwrite: true })
+    } else {
+      gsap.to(s.lines, { yPercent: 110, duration: 0.4, ease: 'power2.in', overwrite: true })
+      gsap.to(s.extras, { opacity: 0, y: 18, duration: 0.3, overwrite: true })
+    }
+  }
+  const navLinks = [...document.querySelectorAll('.nav__links a')]
+  const progressLine = document.getElementById('progressLine')
+  // Card-stack transition: the incoming chapter rounds its top corners and
+  // slides up; the outgoing one recedes and dims beneath it.
+  const transitions = () => {
+    let current = 0
+    for (let i = 0; i < scenes.length; i++) {
+      const top = scenes[i].el.getBoundingClientRect().top
+      const k = i === 0 ? 1 : clamp01(1 - top / viewH)
+      if (top <= viewH * 0.5) current = i
+      if (i > 0) {
+        const r = (1 - k) * 28
+        scenes[i].sticky.style.borderRadius = k > 0 && k < 1 ? `${r}px ${r}px 0 0` : ''
+        scenes[i].sticky.style.boxShadow = k > 0 && k < 1 ? '0 -30px 80px rgba(0, 0, 0, 0.55)' : ''
+        const prev = scenes[i - 1]
+        const cover = k > 0 && k < 1 ? k : k >= 1 ? 1 : 0
+        prev.sticky.style.transform = cover > 0 && cover < 1 ? `scale(${1 - cover * 0.06})` : ''
+        prev.shade.style.opacity = (cover * 0.7).toFixed(3)
+        reveal(scenes[i], k > 0.55)
+      }
+    }
+    navLinks.forEach((a) => a.classList.toggle('is-on', a.getAttribute('href') === '#' + scenes[current].el.id))
+    progressLine.style.transform = `scaleX(${clamp01(scrollY / Math.max(1, document.documentElement.scrollHeight - viewH))})`
   }
 
   document.querySelectorAll('.split').forEach(splitChars)
@@ -237,7 +299,8 @@ async function boot() {
   const mute = document.getElementById('mute')
   mute.addEventListener('click', () => {
     akaraka.muted = !akaraka.muted
-    mute.textContent = akaraka.muted ? '🔇 소리 꺼짐' : '🔊 소리 켜짐'
+    mute.lastChild.textContent = akaraka.muted ? 'SOUND OFF' : 'SOUND ON'
+    mute.classList.toggle('is-off', akaraka.muted)
   })
 
   /* Outro: portals, launch and the Aura Wing card. */
@@ -275,6 +338,7 @@ async function boot() {
     const dt = Math.min((now - last) / 1000, 0.05)
     last = now
 
+    transitions()
     const hp = progress(scenes[0].el)
     hero.progress = hp
     heroCopy.style.opacity = 1 - clamp01((hp - 0.15) / 0.25)
@@ -329,7 +393,8 @@ async function boot() {
         const a = clamp01((s.facing - 0.1) / 0.3)
         el.style.opacity = a
         el.style.visibility = a > 0.02 ? 'visible' : 'hidden'
-        el.style.transform = `translate(${s.x}px, ${s.y}px)`
+        // 신촌 and 송도 sit 30 km apart, so their tags split above and below.
+        el.style.transform = `translate(${Math.min(s.x, innerWidth - el.offsetWidth - 12)}px, ${s.y + (i === 0 ? -22 : i === 1 ? 10 : 0)}px)`
       })
     }
     if (scenes[5].on) outro.portalScreens().forEach((s, i) => (portalEls[i].style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, 0)`))

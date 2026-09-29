@@ -142,7 +142,7 @@ export class Akaraka {
     ctx.fillStyle = '#00132e'
     ctx.fillRect(0, 0, 1024, 256)
     ctx.fillStyle = '#fff'
-    ctx.font = '800 150px "Syne", sans-serif'
+    ctx.font = '800 150px "Inter Tight", sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText('AKARAKA', 512, 130)

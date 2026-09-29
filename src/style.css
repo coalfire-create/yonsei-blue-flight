@@ -9,8 +9,9 @@
   --line: rgba(142, 200, 255, 0.28);
   --gutter: clamp(16px, 4vw, 56px);
   --sans: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
-  --display: 'Syne', var(--sans);
-  --grotesk: 'Space Grotesk', var(--sans);
+  --serif: 'Instrument Serif', 'Times New Roman', var(--sans);
+  --display: 'Inter Tight', var(--sans);
+  --grotesk: 'JetBrains Mono', ui-monospace, var(--sans);
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -36,7 +37,19 @@ body {
   color: var(--fg);
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'ss06', 'tnum';
   word-break: keep-all;
+}
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+::selection {
+  background: var(--sky);
+  color: #001a33;
 }
 a {
   color: inherit;
@@ -66,10 +79,11 @@ button {
   color: var(--sky);
 }
 .loader__num {
-  font-family: var(--display);
-  font-weight: 800;
-  font-size: clamp(100px, 22vw, 300px);
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(110px, 24vw, 320px);
   line-height: 0.85;
+  letter-spacing: -0.03em;
 }
 .loader__bar {
   height: 2px;
@@ -98,9 +112,9 @@ button {
 }
 .nav__logo {
   font-family: var(--display);
-  font-weight: 800;
-  font-size: 20px;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.32em;
 }
 .nav__logo span {
   margin-left: 8px;
@@ -112,12 +126,48 @@ button {
 }
 .nav__links {
   display: flex;
-  gap: 28px;
+  gap: 30px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
-.nav__links a:hover {
-  color: var(--sky);
+.nav__links a {
+  position: relative;
+  padding: 6px 0;
+  color: var(--muted);
+  transition: color 0.4s var(--ease);
+}
+.nav__links a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--sky);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.6s var(--ease);
+}
+.nav__links a:hover,
+.nav__links a.is-on {
+  color: var(--fg);
+}
+.nav__links a.is-on::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+.progress-line {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  height: 2px;
+  background: linear-gradient(90deg, var(--sky2), var(--sky));
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
 }
 .nav__cta {
   padding: 9px 16px;
@@ -138,12 +188,36 @@ button {
 .scene {
   position: relative;
 }
+/* Each chapter slides up over the last like a card. */
+.scene + .scene {
+  margin-top: -100vh;
+  margin-top: -100lvh;
+}
 .scene__sticky {
   position: sticky;
   top: 0;
   height: 100vh;
   height: 100lvh;
   overflow: hidden;
+  background: var(--bg);
+  transform-origin: 50% 0%;
+  will-change: transform, border-radius;
+}
+.scene__shade {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: #02060f;
+  opacity: 0;
+  pointer-events: none;
+}
+.line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.06em;
+}
+.line__in {
+  display: inline-block;
 }
 .scene__canvas {
   position: absolute;
@@ -167,26 +241,38 @@ button {
   cursor: pointer;
 }
 .kicker {
-  display: inline-block;
-  margin-bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
   font-family: var(--grotesk);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
   color: var(--sky);
 }
+.kicker::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.7;
+}
 .h2 {
-  font-weight: 800;
-  font-size: clamp(34px, 5vw, 76px);
-  line-height: 1.1;
-  letter-spacing: -0.04em;
-  text-shadow: 0 4px 30px rgba(5, 12, 26, 0.7);
+  font-weight: 700;
+  font-size: clamp(34px, 4.6vw, 72px);
+  line-height: 1.16;
+  letter-spacing: -0.035em;
+  text-shadow: 0 4px 30px rgba(5, 12, 26, 0.55);
 }
 .body {
-  margin-top: 16px;
-  max-width: 30em;
-  font-size: clamp(15px, 1.2vw, 17px);
-  line-height: 1.75;
+  margin-top: 18px;
+  max-width: 28em;
+  font-size: clamp(15px, 1.1vw, 17px);
+  font-weight: 400;
+  line-height: 1.8;
+  letter-spacing: -0.005em;
   color: var(--muted);
 }
 .hint {
@@ -194,13 +280,14 @@ button {
   align-items: center;
   gap: 10px;
   margin-top: 18px;
-  padding: 8px 14px;
-  border: 1px solid var(--line);
+  padding: 9px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
-  background: var(--glass);
-  backdrop-filter: blur(12px);
-  font-size: 13px;
-  font-weight: 600;
+  background: rgba(6, 16, 34, 0.5);
+  backdrop-filter: blur(14px) saturate(140%);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
 }
 .hint__dot {
   width: 8px;
@@ -255,7 +342,7 @@ button {
 
 /* ---------- hero ---------- */
 .hero {
-  height: 260vh;
+  height: 360vh;
 }
 .hero__copy {
   position: absolute;
@@ -264,16 +351,21 @@ button {
   pointer-events: none;
 }
 .hero__title {
-  font-family: var(--display);
-  font-weight: 800;
-  font-size: clamp(40px, 5.6vw, 92px);
-  line-height: 1;
-  letter-spacing: -0.02em;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(52px, 7.6vw, 128px);
+  line-height: 0.96;
+  letter-spacing: -0.025em;
+}
+.hero__em {
+  font-style: italic;
+  color: #cfe8ff;
 }
 .hero__ko {
-  margin-top: 18px;
-  font-size: clamp(17px, 1.8vw, 26px);
-  font-weight: 700;
+  margin-top: 22px;
+  font-size: clamp(16px, 1.5vw, 22px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
   color: var(--sky);
 }
 .hint--hero {
@@ -294,7 +386,7 @@ button {
 
 /* ---------- 백양로 flight ---------- */
 .flight {
-  height: 900vh;
+  height: 1000vh;
 }
 .flight__head {
   position: absolute;
@@ -577,7 +669,7 @@ button {
 
 /* ---------- underwood ---------- */
 .uw {
-  height: 520vh;
+  height: 620vh;
 }
 .uw__era {
   position: absolute;
@@ -587,9 +679,9 @@ button {
   pointer-events: none;
 }
 .uw__year {
-  font-family: var(--display);
-  font-weight: 800;
-  font-size: clamp(56px, 7vw, 110px);
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(64px, 8vw, 128px);
   display: inline-block;
   white-space: nowrap;
   line-height: 0.95;
@@ -703,7 +795,7 @@ button {
 
 /* ---------- global ---------- */
 .global {
-  height: 160vh;
+  height: 240vh;
   background: radial-gradient(ellipse at 70% 50%, #0a2a60, var(--bg) 60%);
 }
 .global__copy {
@@ -739,7 +831,7 @@ button {
 
 /* ---------- akaraka ---------- */
 .akaraka {
-  height: 160vh;
+  height: 240vh;
 }
 .akaraka__copy {
   position: absolute;
@@ -757,14 +849,35 @@ button {
   position: absolute;
   right: var(--gutter);
   bottom: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 16px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
-  background: var(--glass);
-  backdrop-filter: blur(12px);
-  font-size: 13px;
-  font-weight: 700;
+  background: rgba(6, 16, 34, 0.5);
+  backdrop-filter: blur(14px);
+  font-family: var(--grotesk);
+  font-size: 11px;
+  letter-spacing: 0.16em;
   cursor: pointer;
+}
+/* Tiny live equalizer; flattens when muted. */
+.mute i {
+  width: 14px;
+  height: 12px;
+  background: linear-gradient(var(--sky), var(--sky)) 0 100% / 2px 60% no-repeat, linear-gradient(var(--sky), var(--sky)) 4px 100% / 2px 100% no-repeat,
+    linear-gradient(var(--sky), var(--sky)) 8px 100% / 2px 40% no-repeat, linear-gradient(var(--sky), var(--sky)) 12px 100% / 2px 80% no-repeat;
+  animation: eq 0.9s ease-in-out infinite alternate;
+}
+.mute.is-off i {
+  animation: none;
+  background-size: 2px 2px, 2px 2px, 2px 2px, 2px 2px;
+}
+@keyframes eq {
+  to {
+    background-size: 2px 100%, 2px 30%, 2px 90%, 2px 50%;
+  }
 }
 
 /* ---------- outro ---------- */
@@ -780,10 +893,10 @@ button {
   pointer-events: none;
 }
 .outro__title {
-  font-family: var(--display);
-  font-weight: 800;
-  font-size: clamp(40px, 6vw, 96px);
-  line-height: 1.05;
+  font-weight: 700;
+  font-size: clamp(40px, 5.6vw, 92px);
+  line-height: 1.12;
+  letter-spacing: -0.04em;
 }
 .outro__actions {
   display: flex;
