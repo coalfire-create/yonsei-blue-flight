@@ -7,8 +7,8 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 // stone pillar, wings raised up and back (as on 백양로). The sculpt is a mesh
 // (public/models/eagle.glb: TRELLIS.2 image-to-3D from a generated reference,
 // generated pedestal cut off, meshopt-compressed; model units: wingspan 1,
-// +z forward, y up) and its
-// wings beat through a vertex-shader hinge at the shoulders and elbows.
+// +z forward, y up) and its wings beat through a vertex-shader hinge at the
+// shoulders and elbows.
 
 const MODEL_URL = '/models/eagle.glb'
 export const PILLAR_TOP = -0.207 // model-unit y where the talons grip
