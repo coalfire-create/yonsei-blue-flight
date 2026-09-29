@@ -361,6 +361,158 @@ export class Baekyang {
     // Things placed on the ground follow the relief.
     for (const t of this.targets) if (t.key) t.anchor.y = this.groundAt(t.anchor.x, t.anchor.z) + t.lift
     if (this.statue) this.statue.position.y = this.groundAt(this.statue.position.x, this.statue.position.z) + 10 - PILLAR_TOP * 5.2
+    this.#buildClearance()
+    this.#buildCameraPath()
+  }
+
+  // Safe-height map: the highest thing (ground, roof, tower, tree, statue) in
+  // each 10 m cell, grown by 30 m so anything flying keeps its distance.
+  #buildClearance() {
+    const C = 10
+    const gw = Math.ceil((X1 - T.x0) / C) + 1
+    const gh = Math.ceil((Z1 - T.z0) / C) + 1
+    const top = new Float32Array(gw * gh)
+    for (let j = 0; j < gh; j++)
+      for (let i = 0; i < gw; i++) {
+        const x = T.x0 + i * C
+        const z = T.z0 + j * C
+        top[j * gw + i] = Math.max(this.groundAt(x, z), this.groundAt(x + C, z), this.groundAt(x, z + C), this.groundAt(x + C, z + C))
+      }
+    const raise = (x0, x1, z0, z1, y) => {
+      const i0 = Math.max(0, Math.floor((x0 - T.x0) / C))
+      const i1 = Math.min(gw - 1, Math.floor((x1 - T.x0) / C))
+      const j0 = Math.max(0, Math.floor((z0 - T.z0) / C))
+      const j1 = Math.min(gh - 1, Math.floor((z1 - T.z0) / C))
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) top[j * gw + i] = Math.max(top[j * gw + i], y)
+    }
+    DATA.buildings.forEach((b, k) => {
+      const xs = b.p.map((p) => p[0])
+      const zs = b.p.map((p) => p[1])
+      const tower = /언더우드관|스팀슨관|아펜젤러관/.test(b.n || '') && WORLD.styles[k] === 'g'
+      raise(Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), WORLD.bases[k] + b.h * (tower ? 1.8 : 1) + (WORLD.styles[k] === 'g' ? 9 : 0))
+    })
+    for (let k = 0; k < WORLD.trees.length; k += 4) {
+      const [x, z, y, sc] = WORLD.trees.slice(k, k + 4)
+      raise(x - 4, x + 4, z - 4, z + 4, y + 11 * sc)
+    }
+    const [ex, ez] = DATA.landmarks.eagle
+    raise(ex - 5, ex + 5, ez - 5, ez + 5, this.groundAt(ex, ez) + 24)
+    // Grow by R cells (separable max filter).
+    const R = 3
+    const tmp = new Float32Array(top.length)
+    for (let j = 0; j < gh; j++)
+      for (let i = 0; i < gw; i++) {
+        let m = -1e9
+        for (let d = -R; d <= R; d++) m = Math.max(m, top[j * gw + Math.min(gw - 1, Math.max(0, i + d))])
+        tmp[j * gw + i] = m
+      }
+    const out = new Float32Array(top.length)
+    for (let j = 0; j < gh; j++)
+      for (let i = 0; i < gw; i++) {
+        let m = -1e9
+        for (let d = -R; d <= R; d++) m = Math.max(m, tmp[Math.min(gh - 1, Math.max(0, j + d)) * gw + i])
+        out[j * gw + i] = m
+      }
+    this.clear = { data: out, gw, gh, C }
+  }
+
+  // Highest obstacle within ~30 m of x, z (ground if unknown).
+  clearAt(x, z) {
+    const c = this.clear
+    if (!c) return this.groundAt(x, z)
+    const i = THREE.MathUtils.clamp(Math.floor((x - T.x0) / c.C), 0, c.gw - 2)
+    const j = THREE.MathUtils.clamp(Math.floor((z - T.z0) / c.C), 0, c.gh - 2)
+    const d = c.data
+    return Math.max(d[j * c.gw + i], d[j * c.gw + i + 1], d[(j + 1) * c.gw + i], d[(j + 1) * c.gw + i + 1])
+  }
+
+  // The whole scroll flight, precomputed: sampled along the tour, lifted over
+  // every obstacle (for the camera and the eagle ahead of it), then smoothed
+  // so it glides with no kinks or swings.
+  #buildCameraPath() {
+    const N = 900
+    const A = { x: new Float32Array(N), y: new Float32Array(N), z: new Float32Array(N), lx: new Float32Array(N), ly: new Float32Array(N), lz: new Float32Array(N) }
+    const tan = new THREE.Vector3()
+    for (let i = 0; i < N; i++) {
+      const u = i / (N - 1)
+      const p = this.route.getPointAt(u)
+      tan.set(0, 0, 0)
+      for (let k = -6; k <= 6; k++) tan.add(this.route.getTangentAt(THREE.MathUtils.clamp(u + k * 0.012, 0, 1)))
+      tan.setY(0).normalize()
+      const up = THREE.MathUtils.smoothstep(u, 0.9, 1)
+      const start = Math.max(0, 1 - u * 12)
+      const back = 95 + start * 120 + up * 520
+      A.x[i] = p.x - tan.x * back
+      A.z[i] = p.z - tan.z * back
+      A.y[i] = Math.max(this.groundAt(p.x, p.z), 0) + 62 + start * 80 + up * 420
+      const q = this.route.getPointAt(Math.min(1, u + 0.035))
+      A.lx[i] = THREE.MathUtils.lerp(q.x, 60, up)
+      A.lz[i] = THREE.MathUtils.lerp(q.z, -380, up)
+      A.ly[i] = this.groundAt(q.x, q.z) + 18
+    }
+    const blur = (arr, r, passes = 3) => {
+      const t = new Float32Array(arr.length)
+      for (let p = 0; p < passes; p++) {
+        for (let i = 0; i < arr.length; i++) {
+          let s = 0
+          let n = 0
+          for (let d = -r; d <= r; d++) {
+            const k = Math.min(arr.length - 1, Math.max(0, i + d))
+            s += arr[k]
+            n++
+          }
+          t[i] = s / n
+        }
+        arr.set(t)
+      }
+    }
+    for (const k of ['x', 'z', 'lx', 'lz', 'ly']) blur(A[k], 14)
+    // Height that clears the obstacles under the camera and under the eagle
+    // (55 m ahead, 11 m below), then smoothed without dipping below it.
+    const need = new Float32Array(N)
+    const v = new THREE.Vector3()
+    for (let i = 0; i < N; i++) {
+      v.set(A.lx[i] - A.x[i], 0, A.lz[i] - A.z[i]).normalize()
+      need[i] = Math.max(this.clearAt(A.x[i], A.z[i]) + 28, this.clearAt(A.x[i] + v.x * 55, A.z[i] + v.z * 55) + 24)
+      A.y[i] = Math.max(A.y[i], need[i])
+    }
+    const maxf = (arr, r) => {
+      const t = arr.slice()
+      for (let i = 0; i < arr.length; i++) {
+        let m = -1e9
+        for (let d = -r; d <= r; d++) m = Math.max(m, t[Math.min(arr.length - 1, Math.max(0, i + d))])
+        arr[i] = m
+      }
+    }
+    maxf(A.y, 30)
+    blur(A.y, 16)
+    for (let i = 0; i < N; i++) A.y[i] = Math.max(A.y[i], need[i])
+    blur(A.y, 6, 2)
+    // Re-sample by travelled distance (camera plus aim) so the glide keeps
+    // an even speed through bends instead of crawling and then lurching.
+    const cum = new Float32Array(N)
+    for (let i = 1; i < N; i++)
+      cum[i] = cum[i - 1] + Math.hypot(A.x[i] - A.x[i - 1], A.y[i] - A.y[i - 1], A.z[i] - A.z[i - 1]) + 0.6 * Math.hypot(A.lx[i] - A.lx[i - 1], A.lz[i] - A.lz[i - 1])
+    const R = {}
+    for (const k of Object.keys(A)) R[k] = new Float32Array(N)
+    let j = 0
+    for (let i = 0; i < N; i++) {
+      const s = (i / (N - 1)) * cum[N - 1]
+      while (j < N - 2 && cum[j + 1] < s) j++
+      const t = (s - cum[j]) / Math.max(1e-6, cum[j + 1] - cum[j])
+      for (const k of Object.keys(A)) R[k][i] = A[k][j] + (A[k][j + 1] - A[k][j]) * t
+    }
+    this.path = { ...R, N }
+    // Lock-ons peak when the aim passes closest to each landmark.
+    for (const tg of this.targets) {
+      let best = 0
+      let bd = Infinity
+      for (let i = 0; i < N; i++) {
+        const d = Math.hypot(R.lx[i] - tg.anchor.x, R.lz[i] - tg.anchor.z)
+        if (d < bd) (bd = d), (best = i)
+      }
+      tg.u = best / (N - 1)
+    }
   }
 
   #buildBuildings() {
@@ -628,23 +780,31 @@ export class Baekyang {
   }
 
   #tourPose(u) {
-    const here = this.route.getPointAt(u)
-    const ahead = this.route.getPointAt(Math.min(1, u + 0.035))
-    const tan = this.route.getTangentAt(u)
-    // Finale: soar up and back over the whole campus.
     const up = THREE.MathUtils.smoothstep(u, 0.9, 1)
     this.overview = up
-    const start = Math.max(0, 1 - u * 12)
-    const alt = 70 + start * 90 + up * 420
-    const back = 85 + start * 120 + up * 520
-    const side = this.mouse.x * 30 * (1 - up)
-    const g = Math.max(this.groundAt(here.x, here.z), 0)
-    const pos = new THREE.Vector3(here.x - tan.x * back + tan.z * side, g + alt + this.mouse.y * 12, here.z - tan.z * back - tan.x * side)
-    // Keep clear of the hillside.
-    pos.y = Math.max(pos.y, this.groundAt(pos.x, pos.z) + 45)
+    const P = this.path
+    const pos = new THREE.Vector3()
+    const look = new THREE.Vector3()
+    if (P) {
+      const f = u * (P.N - 1)
+      const i = Math.min(P.N - 2, Math.floor(f))
+      const t = f - i
+      const L = (a) => a[i] + (a[i + 1] - a[i]) * t
+      pos.set(L(P.x), L(P.y), L(P.z))
+      look.set(L(P.lx), L(P.ly), L(P.lz))
+    } else {
+      // Terrain still loading: hold high over the main gate.
+      const [gx, gz] = DATA.landmarks.gate
+      pos.set(gx, 200, gz + 260)
+      look.set(gx, 0, gz - 100)
+    }
+    // Gentle pointer steer, never into anything.
+    const side = new THREE.Vector3(look.z - pos.z, 0, pos.x - look.x).normalize()
+    pos.addScaledVector(side, -this.mouse.x * 12 * (1 - up))
+    pos.y += this.mouse.y * 6 * (1 - up)
+    pos.y = Math.max(pos.y, this.clearAt(pos.x, pos.z) + 22)
     // Portrait screens see more sky, so they look further down.
-    const tilt = this.portrait ? 45 + up * 170 : 0
-    const look = new THREE.Vector3(THREE.MathUtils.lerp(ahead.x, 60, up), this.groundAt(ahead.x, ahead.z) + 18 - tilt, THREE.MathUtils.lerp(ahead.z, -380, up))
+    look.y -= this.portrait ? 45 + up * 170 : 0
     return { pos, look }
   }
 
@@ -652,37 +812,50 @@ export class Baekyang {
     this.time += dt
     this.boost += ((this.hover && !this.free ? 0.03 : 0) - this.boost) * Math.min(1, dt * 2)
     const u = Math.min(1, this.progress + this.boost * (1 - this.progress))
-    this.u = this.u === undefined ? u : this.u + (u - this.u) * Math.min(1, dt * 3)
+    // Critically damped follow of the scroll position.
+    this.u = this.u === undefined ? u : this.u + (u - this.u) * (1 - Math.exp(-dt * 2.6))
     this.look ??= new THREE.Vector3()
 
     let pose = this.#tourPose(this.u)
-    if (this.free) {
-      // Scrolling takes the flight back to the tour.
-      if (Math.abs(this.progress - this.free.progress) > 0.004) this.exitFree()
-    }
+    if (this.free && Math.abs(this.progress - this.free.progress) > 0.004) this.exitFree()
     if (this.free) {
       const f = this.free
       const h = f.hall
       f.t += dt
-      f.ang += dt * 0.12
-      const r = Math.max(70, h.size * 1.8)
-      const orbit = new THREE.Vector3(h.anchor.x + Math.sin(f.ang) * r, h.anchor.y + 40 + r * 0.35, h.anchor.z + Math.cos(f.ang) * r)
-      const k = THREE.MathUtils.smootherstep(f.t, 0, 2.6)
-      // Arc up and over on the way.
+      f.ang += dt * 0.1
+      const r = Math.max(80, h.size * 1.9)
+      const orbit = new THREE.Vector3(h.anchor.x + Math.sin(f.ang) * r, 0, h.anchor.z + Math.cos(f.ang) * r)
+      orbit.y = Math.max(h.anchor.y + 30 + r * 0.3, this.clearAt(orbit.x, orbit.z) + 30)
+      const k = THREE.MathUtils.smootherstep(f.t, 0, 3.2)
+      // Up and over on the way, clear of every roof.
       const mid = f.from.clone().lerp(orbit, k)
-      mid.y += Math.sin(k * Math.PI) * 60
-      pose = { pos: mid, look: f.fromLook.clone().lerp(h.anchor, k) }
+      mid.y = Math.max(mid.y + Math.sin(k * Math.PI) * 70, this.clearAt(mid.x, mid.z) + 30)
+      pose = { pos: mid, look: f.fromLook.clone().lerp(h.anchor, THREE.MathUtils.smootherstep(f.t, 0, 2.4)) }
       this.overview = 0
     } else if (this.blend) {
       this.blend.t += dt
-      const k = THREE.MathUtils.smootherstep(this.blend.t, 0, 1.4)
-      pose = { pos: this.blend.pos.clone().lerp(pose.pos, k), look: this.blend.look.clone().lerp(pose.look, k) }
+      const k = THREE.MathUtils.smootherstep(this.blend.t, 0, 2)
+      const p = this.blend.pos.clone().lerp(pose.pos, k)
+      p.y = Math.max(p.y + Math.sin(k * Math.PI) * 40, this.clearAt(p.x, p.z) + 25)
+      pose = { pos: p, look: this.blend.look.clone().lerp(pose.look, k) }
       if (k >= 1) this.blend = null
     }
-    this.camera.position.copy(pose.pos)
-    this.look.copy(pose.look)
-    this.camera.lookAt(this.look)
-    if (!this.free) this.camera.rotateZ(-this.mouse.x * 0.08)
+    // Low-pass the pose so nothing snaps: position, aim and roll.
+    const a = 1 - Math.exp(-dt * 6)
+    if (!this.placed) {
+      this.camera.position.copy(pose.pos)
+      this.look.copy(pose.look)
+      this.placed = true
+    }
+    this.camera.position.lerp(pose.pos, a)
+    this.look.lerp(pose.look, a)
+    this.aim ??= new THREE.PerspectiveCamera() // camera lookAt convention (-z forward)
+    this.aim.position.copy(this.camera.position)
+    this.aim.lookAt(this.look)
+    this.camQ ??= this.aim.quaternion.clone()
+    this.camQ.slerp(this.aim.quaternion, 1 - Math.exp(-dt * 5))
+    this.roll = (this.roll ?? 0) + ((this.free ? 0 : -this.mouse.x * 0.06) - (this.roll ?? 0)) * (1 - Math.exp(-dt * 3))
+    this.camera.quaternion.copy(this.camQ).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), this.roll))
 
     // Sun and its shadow box follow what we look at.
     this.sun.target.position.copy(this.look)
@@ -701,29 +874,35 @@ export class Baekyang {
     if (!this.flierModel) return
     const speed = Math.abs(u - (this.lastU ?? u)) / Math.max(dt, 1e-3)
     this.lastU = u
-    this.beat = (this.beat ?? 0) + (Math.min(1, speed * 12 + (this.free && this.free.t < 2.6 ? 1 : 0)) - (this.beat ?? 0)) * Math.min(1, dt * 3)
-    this.flapPhase += dt * (2.2 + this.beat * 7)
-    poseEagle(this.flierModel, this.flapPhase, 0.55 + this.beat * 0.45)
+    const want = Math.min(1, speed * 12 + (this.free && this.free.t < 3.2 ? 1 : 0))
+    this.beat = (this.beat ?? 0) + (want - (this.beat ?? 0)) * (1 - Math.exp(-dt * 1.5))
+    this.flapPhase += dt * (2.4 + this.beat * 5.5)
+    poseEagle(this.flierModel, this.flapPhase, 0.5 + this.beat * 0.5)
 
-    // Hold a spot ahead of and below the camera; in the overview it flies on.
+    // Hold a spot ahead of and below the camera, above every roof; in the
+    // overview it flies on ahead.
     const cam = this.camera
-    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion)
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion)
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion)
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camQ)
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camQ)
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camQ)
     const ov = this.overview ?? 0
-    const bob = Math.sin(this.flapPhase) * -0.9
     const pos = cam.position.clone()
       .addScaledVector(fwd, 55 + ov * 260)
-      .addScaledVector(up, -11 - ov * 70 + bob)
-      .addScaledVector(right, -this.mouse.x * 6 + Math.sin(this.time * 0.6) * 3)
-    this.flier.position.lerp(pos, this.flier.userData.placed ? Math.min(1, dt * 8) : 1)
+      .addScaledVector(up, -11 - ov * 70 + Math.sin(this.flapPhase) * -0.6)
+      .addScaledVector(right, -this.mouse.x * 5 + Math.sin(this.time * 0.5) * 2.5)
+    pos.y = Math.max(pos.y, this.clearAt(pos.x, pos.z) + 6)
+    if (!this.flier.userData.placed) this.flier.position.copy(pos)
     this.flier.userData.placed = true
+    this.flier.position.lerp(pos, 1 - Math.exp(-dt * 4))
+    // Heading eases round; bank follows the turn rate.
     const dir = fwd.clone().setY(0).normalize()
-    const prev = this.prevDir ?? dir.clone()
-    const turn = prev.x * dir.z - prev.z * dir.x
-    this.prevDir = dir.clone()
-    this.bank += (THREE.MathUtils.clamp(turn * 40 - this.mouse.x * 0.5, -0.7, 0.7) - this.bank) * Math.min(1, dt * 2)
-    this.flier.lookAt(this.flier.position.clone().add(dir))
+    this.eDir ??= dir.clone()
+    const prev = this.eDir.clone()
+    this.eDir.lerp(dir, 1 - Math.exp(-dt * 3)).normalize()
+    const turnRate = (prev.x * this.eDir.z - prev.z * this.eDir.x) / Math.max(dt, 1e-3)
+    const bankTo = THREE.MathUtils.clamp(turnRate * 1.2 - this.mouse.x * 0.35, -0.6, 0.6)
+    this.bank += (bankTo - this.bank) * (1 - Math.exp(-dt * 2.5))
+    this.flier.lookAt(this.flier.position.clone().add(this.eDir))
     this.flier.rotateZ(this.bank)
   }
 }
