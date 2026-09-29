@@ -8,6 +8,7 @@ import { Globe, HUBS } from './scenes/globe.js'
 import { Akaraka } from './scenes/akaraka.js'
 import { Outro, PORTALS } from './scenes/outro.js'
 import { drawAura } from './aura.js'
+import { INFO, KIND } from './data/info.js'
 
 const clamp01 = (v) => Math.min(1, Math.max(0, v))
 
@@ -175,7 +176,7 @@ async function boot() {
     el.className = 'tag'
     el.textContent = h.name
     el.addEventListener('click', () =>
-      openCard({ name: h.name, code: h.code, en: 'Yonsei University · Sinchon Campus', body: h.lv ? `연세대학교 신촌캠퍼스 · 지상 ${h.lv}층` : '연세대학교 신촌캠퍼스' }),
+      openCard(h),
     )
     locks.prepend(el)
     h.alpha = 0
@@ -223,10 +224,8 @@ async function boot() {
     const li = document.createElement('li')
     li.innerHTML = `<button type="button"><span>${h.name}</span><small>${h.code ? h.code : ''}</small></button>`
     li.firstChild.addEventListener('click', () => {
-      flight.flyTo(h)
       dir.hidden = true
-      dirBack.hidden = false
-      openCard({ name: h.name, code: h.code, en: h.en || 'Yonsei University · Sinchon Campus', body: h.body || (h.lv ? `연세대학교 신촌캠퍼스 · 지상 ${h.lv}층` : '연세대학교 신촌캠퍼스') })
+      goTo(h)
     })
     dirList.appendChild(li)
     return { li, name: h.name }
@@ -249,13 +248,40 @@ async function boot() {
     card.hidden = true
   }
   const card = document.getElementById('card')
+  // Detail card: story, key facts, nearby halls, fly-to and map link.
+  const cardEls = Object.fromEntries(['Code', 'Name', 'En', 'Body', 'Rows', 'Facts', 'Near', 'Go', 'Map'].map((k) => [k, document.getElementById('card' + k)]))
+  const findHall = (name) => flight.directory.find((h) => h.name === name || h.name.startsWith(name))
   const openCard = (t) => {
-    document.getElementById('cardCode').textContent = t.code ? `BLDG ${t.code}` : t.key ? 'LANDMARK' : 'CAMPUS'
-    document.getElementById('cardName').textContent = t.name
-    document.getElementById('cardEn').textContent = t.en
-    document.getElementById('cardBody').textContent = t.body
+    const hall = t.anchor ? t : findHall(t.name) || t
+    const info = INFO[t.name] || INFO[t.name.replace(/병원 본관$/, '병원')] || {}
+    const code = t.code || hall.code
+    cardEls.Code.textContent = [info.kind || KIND[hall.style] || (t.key ? '랜드마크' : '캠퍼스 건물'), code ? `No. ${code}` : ''].filter(Boolean).join('  ·  ')
+    cardEls.Name.textContent = t.name
+    cardEls.En.textContent = t.en || hall.en || 'Yonsei University · Sinchon Campus'
+    cardEls.Body.textContent = info.story || t.body || hall.body || '연세대학교 신촌캠퍼스의 건물이에요.'
+    const rows = [...(info.rows || [])]
+    if ((t.lv || hall.lv) && !rows.some(([k]) => k === '층수')) rows.push(['층수', `지상 ${t.lv || hall.lv}층`])
+    cardEls.Rows.innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')
+    cardEls.Facts.innerHTML = (info.facts || []).map((f) => `<li>${f}</li>`).join('')
+    // Three nearest named halls, each a jump.
+    const a = hall.anchor || t.anchor
+    const near = a ? flight.directory.filter((h) => h.name !== t.name && h.anchor).map((h) => [h, Math.hypot(h.anchor.x - a.x, h.anchor.z - a.z)]).sort((x, y) => x[1] - y[1]).slice(0, 3) : []
+    if (!info.story && !t.body && !hall.body && near.length)
+      cardEls.Body.textContent = `${near[0][0].name}에서 ${Math.round(near[0][1])}m 떨어진 ${(KIND[hall.style] || '캠퍼스 건물').replace(/물$/, '물')}이에요. 아래 '가까이 날아가 보기'로 독수리와 함께 둘러보세요.`
+    cardEls.Near.innerHTML = near.length ? '<span>주변</span>' + near.map(([h, d]) => `<button type="button" data-n="${h.name}">${h.name} <small>${Math.round(d)}m</small></button>`).join('') : ''
+    cardEls.Near.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => goTo(findHall(b.dataset.n))))
+    cardEls.Go.hidden = !a
+    cardEls.Go.onclick = () => goTo({ ...hall, anchor: a, size: hall.size || 60, name: t.name })
+    cardEls.Map.href = `https://map.kakao.com/?q=${encodeURIComponent('연세대학교 ' + t.name.replace(/연세대학교 /, ''))}`
     card.hidden = false
-    gsap.fromTo(card, { rotateX: -60, opacity: 0, y: 30 }, { rotateX: 0, opacity: 1, y: 0, duration: 0.7, ease: 'back.out(1.6)' })
+    card.openedAt = flight.progress
+    gsap.fromTo(card, { x: 40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: 'expo.out', overwrite: true })
+  }
+  const goTo = (h) => {
+    if (!h) return
+    flight.flyTo(h)
+    dirBack.hidden = false
+    openCard(h)
   }
   document.getElementById('cardClose').addEventListener('click', () => (card.hidden = true))
   const speedEl = document.getElementById('speed')
@@ -347,7 +373,7 @@ async function boot() {
     flight.progress = fp
     flightHead.style.opacity = 1 - clamp01((fp - 0.04) / 0.06)
 
-    underwood.progress = progress(scenes[2].el)
+    underwood.progress = underwood.pace(progress(scenes[2].el))
 
     for (const s of scenes) if (s.on) s.view.render(dt)
 
@@ -369,6 +395,8 @@ async function boot() {
       })
       lockName.textContent = best && best.near > 0.75 ? best.name : '—'
       placeTags(dt, lockBoxes)
+      // A card from the tour closes itself once the flight has moved on.
+      if (!card.hidden && !flight.free && Math.abs(flight.progress - card.openedAt) > 0.04) card.hidden = true
     }
     if (scenes[2].on) {
       const i = underwood.era()

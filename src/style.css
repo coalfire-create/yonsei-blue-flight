@@ -624,52 +624,185 @@ button {
 }
 .card {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: min(360px, 86vw);
-  margin: -150px 0 0 min(-180px, -43vw);
-  padding: 28px;
-  border: 1px solid rgba(160, 220, 255, 0.5);
-  border-radius: 22px;
-  background: linear-gradient(150deg, rgba(0, 56, 118, 0.75), rgba(5, 12, 26, 0.85));
-  backdrop-filter: blur(18px);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), 0 0 60px rgba(0, 210, 255, 0.25);
-  transform-style: preserve-3d;
-  perspective: 800px;
+  top: 150px;
+  left: var(--gutter);
+  z-index: 5;
+  width: min(380px, calc(100% - 32px));
+  max-height: calc(100% - 240px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 26px 26px 22px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  background: linear-gradient(160deg, rgba(8, 30, 66, 0.9), rgba(4, 10, 22, 0.92));
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+.card[hidden] {
+  display: none;
 }
 .card__close {
   position: absolute;
-  top: 12px;
+  top: 14px;
   right: 16px;
   border: 0;
   background: none;
-  font-size: 26px;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
   cursor: pointer;
 }
 .card__code {
   font-family: var(--grotesk);
-  font-size: 11px;
-  letter-spacing: 0.3em;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
   color: var(--sky);
 }
 .card__name {
   margin-top: 10px;
-  font-size: 34px;
-  font-weight: 800;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
 }
 .card__en {
-  font-family: var(--grotesk);
-  font-size: 14px;
+  display: block;
+  margin-top: 4px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 17px;
   color: var(--muted);
 }
 .card__body {
   margin-top: 16px;
-  line-height: 1.7;
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: rgba(242, 247, 255, 0.86);
+}
+.card__rows {
+  display: grid;
+  margin-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.card__rows:empty,
+.card__facts:empty,
+.card__near:empty {
+  display: none;
+}
+.card__rows div {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+}
+.card__rows dt {
+  font-family: var(--grotesk);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.card__facts {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(242, 247, 255, 0.78);
+}
+.card__facts li {
+  position: relative;
+  padding-left: 16px;
+}
+.card__facts li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.7em;
+  width: 6px;
+  height: 1px;
+  background: var(--sky);
+}
+.card__near {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+}
+.card__near span {
+  margin-right: 4px;
+  font-family: var(--grotesk);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.card__near button {
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+.card__near button:hover {
+  border-color: var(--sky);
+}
+.card__near small {
+  margin-left: 2px;
+  font-family: var(--grotesk);
+  font-size: 10px;
+  color: var(--muted);
+}
+.card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+.card__go {
+  flex: 1;
+  height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sky);
+  color: #001a33;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.card__go[hidden] {
+  display: none;
+}
+.card__map {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+@media (max-width: 760px) {
+  .card {
+    top: auto;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: 62%;
+    padding: 20px;
+  }
+  .card__name {
+    font-size: 24px;
+  }
 }
 
 /* ---------- underwood ---------- */
 .uw {
-  height: 620vh;
+  height: 1500vh;
 }
 .uw__era {
   position: absolute;
@@ -677,6 +810,20 @@ button {
   left: var(--gutter);
   max-width: 400px;
   pointer-events: none;
+  text-shadow: 0 2px 24px rgba(2, 6, 15, 0.8);
+}
+/* Soft shade behind the captions so they read over sparks and windows. */
+.uw .scene__sticky::after {
+  content: '';
+  position: absolute;
+  inset: 0 45% 0 0;
+  background: linear-gradient(90deg, rgba(2, 6, 15, 0.6), transparent);
+  pointer-events: none;
+}
+.uw__era,
+.uw__dots,
+.hint--uw {
+  z-index: 2;
 }
 .uw__year {
   font-family: var(--serif);

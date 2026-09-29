@@ -705,13 +705,14 @@ export class Baekyang {
       })
       area = Math.abs(area / 2)
       if ((best.get(b.n)?.area ?? -1) < area)
-        best.set(b.n, { name: b.n, code: b.code, lv: b.lv, area, size: Math.sqrt(area), anchor: new THREE.Vector3(cx / b.p.length, WORLD.bases[i] + b.h + 3, cz / b.p.length) })
+        best.set(b.n, { name: b.n, code: b.code, lv: b.lv, style: WORLD.styles[i], area, size: Math.sqrt(area), anchor: new THREE.Vector3(cx / b.p.length, WORLD.bases[i] + b.h + 3, cz / b.p.length) })
     })
     this.halls = [...best.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
     // Directory: every named hall, lock-on ones included.
     this.directory = [
       ...this.halls,
       ...this.targets.filter((t) => t.hall).map((t) => ({ name: t.name, code: t.code, en: t.en, body: t.body, anchor: t.anchor, size: 60 })),
+      ...this.targets.filter((t) => t.key && t.key !== 'gate').map((t) => ({ name: t.name, en: t.en, body: t.body, anchor: t.anchor, size: 40, key: t.key })),
     ].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
   }
 

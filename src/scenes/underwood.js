@@ -30,6 +30,8 @@ export const ERAS = [
 ]
 
 const ss = THREE.MathUtils.smoothstep
+// Story time where each era's scene has settled (read while it holds).
+const HOLDS = [0.05, 0.15, 0.31, 0.45, 0.565, 0.665, 0.8, 0.93]
 
 // Head and arm hinges in the vertex shader (model units).
 const hingeChunk = /* glsl */ `
@@ -320,6 +322,18 @@ export class Underwood {
   headScreen() {
     const v = new THREE.Vector3(0, 0.5, 0).applyMatrix4(this.statue.matrixWorld).project(this.camera)
     return { x: (v.x * 0.5 + 0.5) * this.canvas.clientWidth, y: (-v.y * 0.5 + 0.5) * this.canvas.clientHeight }
+  }
+
+  // Scroll -> story time. Each era holds still for most of its stretch of
+  // scroll so it can be read, then eases through the change to the next.
+  pace(raw) {
+    const n = HOLDS.length
+    const f = THREE.MathUtils.clamp(raw, 0, 1) * n
+    const k = Math.min(n - 1, Math.floor(f))
+    const t = f - k
+    if (k === n - 1) return HOLDS[k] + (1 - HOLDS[k]) * t
+    const move = THREE.MathUtils.smootherstep(t, 0.55, 1)
+    return HOLDS[k] + (HOLDS[k + 1] - HOLDS[k]) * move
   }
 
   era() {
