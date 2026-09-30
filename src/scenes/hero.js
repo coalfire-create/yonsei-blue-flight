@@ -1,10 +1,5 @@
 import * as THREE from 'three'
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
-import { backdrop } from '../backdrop.js'
-import { bronzeMaterial, buildEagle, buildPillar, poseEagle, sapphireEnv, shardGeometry, shardMaterial } from '../eagle.js'
+import { bronzeMaterial, buildEagle, keylineMaterial, poseEagle, sapphireEnv, shardGeometry, shardMaterial } from '../eagle.js'
 
 const S = 5 // eagle model units -> scene units (wingspan 5)
 
@@ -12,7 +7,9 @@ export class Hero {
   constructor(canvas) {
     this.canvas = canvas
     this.mobile = innerWidth < 760
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+    // Transparent: the duotone campus and the giant 'Yonsei' sit behind it.
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
+    this.renderer.setClearColor(0x000000, 0)
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.mobile ? 1.5 : 2))
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.scene = new THREE.Scene()
@@ -20,28 +17,20 @@ export class Hero {
     this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100)
     this.camera.position.set(0, 1.4, 11)
 
-    // Behind the statue: the real campus up 백양로 toward 안산, baked from
-    // the flight scene's 3D world at golden hour.
-    this.bg = backdrop('hero')
-    this.scene.add(this.bg.mesh)
-
-    // Golden hour to match the backdrop: low warm sun, cool sky fill.
-    const key = new THREE.DirectionalLight('#ffd3a0', 2.4)
+    // Warm key on the bronze, Yonsei-blue rim from behind.
+    const key = new THREE.DirectionalLight('#ffd9ae', 2.6)
     key.position.set(3, 5, 6)
-    const back = new THREE.DirectionalLight('#ffe7c2', 2.6)
+    const back = new THREE.DirectionalLight('#8fb8ff', 3.2)
     back.position.set(-5, 3, -5)
     const flood = new THREE.SpotLight('#ffcf8a', 60, 30, 0.22, 0.8)
     flood.position.set(2.5, 1, 8)
     flood.target.position.set(0, 0.6, 0)
-    this.scene.add(key, back, flood, flood.target, new THREE.HemisphereLight('#bcd6f5', '#6b5a44', 0.7))
+    this.scene.add(key, back, flood, flood.target, new THREE.HemisphereLight('#a9c4f0', '#1a2440', 0.8))
 
     // stage: drag rotation (pillar + eagle); pivot: the eagle's flight.
     this.stage = new THREE.Group()
-    this.stage.position.y = -0.4
+    this.stage.position.y = -0.35
     this.scene.add(this.stage)
-    const pillar = buildPillar(6, new THREE.MeshStandardMaterial({ color: '#8f8c86', roughness: 0.92 }))
-    pillar.scale.setScalar(S)
-    this.stage.add(pillar)
     this.pivot = new THREE.Group()
     this.stage.add(this.pivot)
 
@@ -51,15 +40,15 @@ export class Hero {
     this.eagle = null
     buildEagle(this.material).then((eagle) => {
       eagle.scale.setScalar(S)
+      // Keyline for the 2D emblem state.
+      this.keyline = new THREE.Mesh(eagle.userData.mesh.geometry, keylineMaterial(this.material.userData.flat))
+      this.keyline.renderOrder = -1
+      eagle.add(this.keyline)
       this.eagle = eagle
       this.pivot.add(eagle)
       this.onReady?.()
     })
 
-    this.composer = new EffectComposer(this.renderer)
-    this.composer.addPass(new RenderPass(this.scene, this.camera))
-    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.5, 0.82))
-    this.composer.addPass(new OutputPass())
 
     this.progress = 0
     this.time = 0
@@ -94,7 +83,6 @@ export class Hero {
       this.pitch = THREE.MathUtils.clamp(this.pitch + this.vPitch, -0.6, 0.8)
     })
     const end = (e) => {
-      if (drag && drag.moved < 6 && this.#hitEagle(e)) this.shatter()
       drag = null
     }
     c.addEventListener('pointerup', end)
@@ -123,24 +111,16 @@ export class Hero {
     const w = this.canvas.clientWidth
     const h = this.canvas.clientHeight
     this.renderer.setSize(w, h, false)
-    this.composer.setSize(w, h)
-    this.bg.resize(w, h)
     this.camera.aspect = w / h
     const portrait = w / h < 0.8
     this.camera.position.z = portrait ? 19 : 11.5
-    this.lookY = portrait ? -2.6 : -1.1
+    this.lookY = portrait ? 0.4 : 0.25
     this.camera.updateProjectionMatrix()
   }
 
   render(dt) {
     this.time += dt
     const p = this.progress
-    // The campus drifts with the drag and falls away as the eagle climbs.
-    const bu = this.bg.u
-    bu.uOff.value.set(-this.yaw * 0.025, p * 0.1)
-    bu.uZoom.value = 1.04 + p * 0.12
-    bu.uDark.value = 0.12 + p * 0.25
-    this.bg.update(dt)
 
     // Drag inertia; idle slow turn.
     this.vYaw *= Math.pow(0.05, dt)
@@ -149,22 +129,30 @@ export class Hero {
     this.yaw += (Math.sin(this.time * 0.35) * 0.35 - this.yaw) * dt * (Math.abs(this.vYaw) > 0.002 ? 0 : 0.4)
     // Rests in a three-quarter profile, like the statue seen from 백양로;
     // turns to face the viewer as it takes off.
-    this.stage.rotation.set(this.pitch * (1 - p) * 0.5, (this.yaw - 0.7) * (1 - THREE.MathUtils.smoothstep(p, 0.05, 0.4)), 0)
+    // 2D emblem (flat, square to the viewer) -> 3D bronze turning to a
+    // three-quarter view -> flight.
+    const flat = 1 - THREE.MathUtils.smoothstep(p, 0.015, 0.14)
+    this.material.userData.flat.value = flat
+    const turn = THREE.MathUtils.smoothstep(p, 0.04, 0.22) * (1 - THREE.MathUtils.smoothstep(p, 0.3, 0.5))
+    this.stage.rotation.set(this.pitch * (1 - flat) * (1 - p) * 0.5, (this.yaw * (1 - flat) - 0.7 * turn) * (1 - THREE.MathUtils.smoothstep(p, 0.3, 0.5)), 0)
     // As it takes off the camera tilts up after it, leaving the pillar below.
     this.camera.lookAt(0, this.lookY + p * 2.5, 0)
 
     if (!this.eagle) {
-      this.composer.render()
+      this.renderer.render(this.scene, this.camera)
       return
     }
     // Scroll: bronze statue -> alive, beating its raised wings, lifting off
     // the pillar toward the viewer and out over the top of the frame.
-    const flap = THREE.MathUtils.smoothstep(p, 0.05, 0.25)
+    const flap = THREE.MathUtils.smoothstep(p, 0.16, 0.3)
     const speed = 2.4 + flap * 4.5
     // Statue holds the wings up (phase 0) until it wakes.
     this.phase = flap > 0.001 ? (this.phase ?? 0) + dt * speed : 0
     poseEagle(this.eagle, this.phase, flap)
-    const lift = THREE.MathUtils.smoothstep(p, 0.2, 1)
+    const lift = THREE.MathUtils.smoothstep(p, 0.26, 1)
+    // The emblem is drawn larger; it settles to statue size as it turns 3D.
+    this.pivot.scale.setScalar(1 + flat * 0.32)
+    if (this.keyline) this.keyline.visible = flat > 0.02
     const bob = flap * (0.5 - 0.5 * Math.cos(this.phase)) * 0.35
     this.pivot.position.set(0, lift * lift * 9 + lift * 0.6 + bob, lift * 3)
     this.eagle.rotation.x = lift * 0.45
@@ -184,6 +172,6 @@ export class Hero {
       }
     }
     this.material.userData.rimPower.value = 0.45 + 0.15 * Math.sin(this.time * 2)
-    this.composer.render()
+    this.renderer.render(this.scene, this.camera)
   }
 }

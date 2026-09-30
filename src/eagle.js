@@ -102,23 +102,50 @@ export function bronzeMaterial({ rim = '#4facfe' } = {}) {
   mat.userData.rimPower = { value: 1 }
   mat.userData.beat = { value: 0 }
   mat.userData.beat2 = { value: 0 }
+  mat.userData.flat = { value: 0 } // 1: a flat 2D emblem, 0: the 3D bronze
+  mat.userData.flatColor = { value: new THREE.Color('#1d4fb8') }
   mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uFlat = mat.userData.flat
+    shader.uniforms.uFlatColor = mat.userData.flatColor
     shader.uniforms.uRim = mat.userData.rim
     shader.uniforms.uRimPower = mat.userData.rimPower
     shader.uniforms.uBeat = mat.userData.beat
     shader.uniforms.uBeat2 = mat.userData.beat2
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\nvarying float vUp;\n${hingeChunk}`)
+      .replace('#include <common>', `#include <common>\nvarying float vUp;\nuniform float uFlat;\n${hingeChunk}`)
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nobjectNormal = wingN(position, objectNormal);')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed = wing(position);\nvUp = objectNormal.y;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed = wing(position);\ntransformed.z *= 1.0 - uFlat * 0.96; // pressed flat into an emblem\nvUp = objectNormal.y;')
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimPower;\nvarying float vUp;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimPower;\nuniform float uFlat;\nuniform vec3 uFlatColor;\nvarying float vUp;')
       // Weathered patina: upward faces catch a gold wear, undersides stay dark.
       .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb * 0.5, vec3(0.72, 0.52, 0.24), smoothstep(0.2, 0.95, vUp) * 0.45);')
-      .replace('#include <dithering_fragment>', rimChunk)
+      .replace(
+        '#include <dithering_fragment>',
+        rimChunk +
+          `
+        // Emblem: one flat ink with a pale keyline on the silhouette.
+        float keyl = smoothstep(0.35, 0.8, pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 1.5));
+        vec3 ink = uFlatColor * (0.92 + keyl * 0.12);
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, ink, uFlat);`,
+      )
   }
   mat.customProgramCacheKey = () => 'bronze-eagle'
   return mat
+}
+
+// Pale keyline around the flat emblem: an inverted hull, pressed flat with
+// the eagle and pushed out along its normals.
+export function keylineMaterial(flat, color = '#e9f0ff') {
+  const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide, transparent: true })
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uFlat = flat
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uFlat;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed += normal * 0.009;\ntransformed.z *= 1.0 - uFlat * 0.96;\ntransformed.z -= 0.02;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uFlat;').replace('#include <dithering_fragment>', '#include <dithering_fragment>\ngl_FragColor.a *= smoothstep(0.35, 0.9, uFlat);')
+  }
+  m.customProgramCacheKey = () => 'eagle-keyline'
+  return m
 }
 
 export function stoneMaterial() {

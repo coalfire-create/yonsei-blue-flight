@@ -157,7 +157,9 @@ async function boot() {
   document.getElementById('cvHero').addEventListener('pointermove', (e) => {
     if (trail.length < 400 && (trail.length === 0 || Math.hypot(e.clientX - trail.at(-1)[0], e.clientY - trail.at(-1)[1]) > 12)) trail.push([e.clientX / innerWidth, e.clientY / innerHeight])
   })
-  const heroCopy = document.querySelector('.hero__copy')
+  const heroOverlay = document.querySelectorAll('.hero__foot, .hero__corner')
+  const heroWord = document.querySelector('.hero__word')
+  const heroBg = document.getElementById('heroBg')
 
   /* 백양로: lock-on reticles and cards. */
   const locks = document.getElementById('locks')
@@ -369,7 +371,14 @@ async function boot() {
     transitions()
     const hp = progress(scenes[0].el)
     hero.progress = hp
-    heroCopy.style.opacity = 1 - clamp01((hp - 0.15) / 0.25)
+    // The word opens up and lifts away as the eagle takes off; the campus
+    // behind drifts with the drag and sinks.
+    const fade = 1 - clamp01((hp - 0.08) / 0.3)
+    heroOverlay.forEach((el) => (el.style.opacity = fade))
+    heroWord.style.opacity = 1 - clamp01((hp - 0.12) / 0.35)
+    heroWord.style.transform = `translateY(calc(-46% + ${-hp * 18}vh)) scale(${1 + hp * 0.25})`
+    heroWord.style.letterSpacing = `${-0.035 + hp * 0.08}em`
+    heroBg.style.transform = `translate3d(${-hero.yaw * 14}px, ${hp * 8}vh, 0) scale(${1.02 + hp * 0.1})`
 
     const fp = progress(scenes[1].el)
     flight.progress = fp
