@@ -1347,3 +1347,28 @@ button {
   .hint__dot,
   .lock__box { animation: none; }
 }
+
+/* Clouds the eagle climbs through between the opening and the campus. */
+.sky-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 60%, rgba(214, 228, 255, 0.95), rgba(150, 185, 245, 0.85) 45%, rgba(40, 80, 170, 0.6));
+  overflow: hidden;
+}
+.sky-veil i {
+  position: absolute;
+  width: 80vw;
+  height: 40vh;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
+  filter: blur(18px);
+  transform: translateY(var(--rise, 0));
+}
+.sky-veil i:nth-child(1) { left: -20vw; top: 10vh; }
+.sky-veil i:nth-child(2) { left: 40vw; top: 30vh; width: 90vw; }
+.sky-veil i:nth-child(3) { left: 5vw; top: 55vh; height: 50vh; }
+.sky-veil i:nth-child(4) { left: 55vw; top: -10vh; width: 60vw; }
+.sky-veil i:nth-child(5) { left: 20vw; top: 80vh; width: 100vw; }

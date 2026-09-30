@@ -865,6 +865,12 @@ export class Baekyang {
       pose = { pos: p, look: this.blend.look.clone().lerp(pose.look, k) }
       if (k >= 1) this.blend = null
     }
+    // Arriving from the opening: start high in the sky and drop in.
+    const intro = this.intro ?? 0
+    if (intro > 0.001) {
+      pose = { pos: pose.pos.clone().add(new THREE.Vector3(0, intro * intro * 420, intro * 160)), look: pose.look }
+      this.placed = false
+    }
     // Low-pass the pose so nothing snaps: position, aim and roll.
     const a = 1 - Math.exp(-dt * 6)
     if (!this.placed) {

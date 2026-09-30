@@ -110,6 +110,12 @@ async function boot() {
     }
   }
   const navLinks = [...document.querySelectorAll('.nav__links a')]
+  const THREE_ease = (t) => t * t * (3 - 2 * t)
+  // Cloud bank between the opening and the campus.
+  const veil = document.createElement('div')
+  veil.className = 'sky-veil'
+  veil.innerHTML = '<i></i><i></i><i></i><i></i><i></i>'
+  document.body.appendChild(veil)
   const progressLine = document.getElementById('progressLine')
   // Card-stack transition: the incoming chapter rounds its top corners and
   // slides up; the outgoing one recedes and dims beneath it.
@@ -119,13 +125,29 @@ async function boot() {
       const top = scenes[i].el.getBoundingClientRect().top
       const k = i === 0 ? 1 : clamp01(1 - top / viewH)
       if (top <= viewH * 0.5) current = i
-      if (i > 0) {
+      if (i === 1) {
+        // Opening -> campus: no sliding card. The campus stays pinned and
+        // fades up through a bank of cloud while the camera drops out of
+        // the sky toward the main gate, as if following the eagle down.
+        const on = k > 0 && k < 1
+        const sticky = scenes[1].sticky
+        sticky.style.transform = on ? `translate3d(0, ${-top}px, 0) scale(${1 + (1 - k) * 0.06})` : ''
+        sticky.style.opacity = on ? THREE_ease(clamp01((k - 0.35) / 0.5)).toFixed(3) : ''
+        flight.intro = 1 - k
+        const bell = Math.sin(Math.PI * clamp01(k))
+        veil.style.opacity = on ? bell.toFixed(3) : '0'
+        veil.style.setProperty('--rise', `${(k * 60).toFixed(1)}vh`)
+        scenes[0].sticky.style.transform = on ? `scale(${1 + k * 0.08})` : ''
+        scenes[0].shade.style.opacity = '0'
+        reveal(scenes[1], k > 0.8)
+      } else if (i > 0) {
         const r = (1 - k) * 28
         scenes[i].sticky.style.borderRadius = k > 0 && k < 1 ? `${r}px ${r}px 0 0` : ''
         scenes[i].sticky.style.boxShadow = k > 0 && k < 1 ? '0 -30px 80px rgba(0, 0, 0, 0.55)' : ''
         const prev = scenes[i - 1]
         const cover = k > 0 && k < 1 ? k : k >= 1 ? 1 : 0
-        prev.sticky.style.transform = cover > 0 && cover < 1 ? `scale(${1 - cover * 0.06})` : ''
+        // (The campus's own pinning, set above, is left alone until covered.)
+        if (i !== 2 || cover > 0) prev.sticky.style.transform = cover > 0 && cover < 1 ? `scale(${1 - cover * 0.06})` : ''
         prev.shade.style.opacity = (cover * 0.7).toFixed(3)
         reveal(scenes[i], k > 0.55)
       }
@@ -159,7 +181,7 @@ async function boot() {
   document.getElementById('cvHero').addEventListener('pointermove', (e) => {
     if (trail.length < 400 && (trail.length === 0 || Math.hypot(e.clientX - trail.at(-1)[0], e.clientY - trail.at(-1)[1]) > 12)) trail.push([e.clientX / innerWidth, e.clientY / innerHeight])
   })
-  const heroOverlay = document.querySelectorAll('.hero__side, .hero__pre, .hero__corner, .scroll-hint')
+  const heroOverlay = document.querySelectorAll('.hero__pre, .hero__corner, .scroll-hint')
   const heroWord = document.querySelector('.hero__word')
 
   /* 백양로: lock-on reticles and cards. */
