@@ -116,12 +116,12 @@ function facadeTexture(w, h, cols, rows, { door = false, seed = 1 } = {}) {
         ctx.fill()
         continue
       }
-      ctx.fillStyle = '#d8d2c4'
+      ctx.fillStyle = '#8f887c'
       ctx.fillRect(x - 3, y - 3, ww + 6, hh + 6)
-      const lit = rnd() < 0.55
-      ctx.fillStyle = lit ? `rgb(255,${200 + rnd() * 30},${120 + rnd() * 40})` : '#1a2230'
+      const lit = rnd() < 0.3
+      ctx.fillStyle = lit ? `rgb(${220 + rnd() * 20},${176 + rnd() * 24},${118 + rnd() * 30})` : '#141b27'
       ctx.fillRect(x, y, ww, hh)
-      ctx.fillStyle = '#d8d2c4'
+      ctx.fillStyle = '#8f887c'
       ctx.fillRect(x + ww / 2 - 1.5, y, 3, hh)
       ctx.fillRect(x, y + hh * 0.45, ww, 3)
     }
@@ -259,7 +259,7 @@ export class Underwood {
 
   #buildPedestal() {
     const g = new THREE.Group()
-    const granite = new THREE.MeshStandardMaterial({ color: '#b8b4ab', roughness: 0.8 })
+    const granite = new THREE.MeshStandardMaterial({ color: '#8f8a80', roughness: 0.85 })
     const u = S
     const box = (w, h, d, y) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w * u, h * u, d * u), granite)
@@ -292,16 +292,16 @@ export class Underwood {
     this.scene.add(new THREE.AmbientLight('#5d74a8', 0.25))
     const moon = new THREE.DirectionalLight('#9cc4ff', 0.6)
     moon.position.set(-6, 10, -4)
-    const flood = new THREE.SpotLight('#ffd7a0', 70, 40, 0.2, 0.6)
-    flood.position.set(2.5, 0.3, 9)
+    const flood = new THREE.SpotLight('#ffd7a0', 90, 40, 0.18, 0.7)
+    flood.position.set(3, 7, 9)
     flood.target.position.set(0, 3.2, 0)
-    const flood2 = new THREE.SpotLight('#bfe0ff', 30, 40, 0.22, 0.7)
-    flood2.position.set(-4, 0.5, 6)
+    const flood2 = new THREE.SpotLight('#bfe0ff', 35, 40, 0.2, 0.8)
+    flood2.position.set(-5, 6, 6)
     flood2.target.position.set(0, 3.4, 0)
     // Up-light washing the granite pedestal.
-    const wash = new THREE.SpotLight('#ffe6c4', 45, 20, 0.5, 0.8)
-    wash.position.set(0.8, 0.2, 5)
-    wash.target.position.set(0, 1.2, 0)
+    const wash = new THREE.SpotLight('#ffe6c4', 22, 20, 0.28, 0.9)
+    wash.position.set(1.5, 2.4, 6)
+    wash.target.position.set(0, 1, 0)
     this.scene.add(moon, flood, flood.target, flood2, flood2.target, wash, wash.target)
   }
 
@@ -356,7 +356,8 @@ export class Underwood {
   // Timeline -> shard burst, melt and heat.
   #timeline(p) {
     let burst
-    if (p < 0.2) burst = 1 - ss(p, 0.1, 0.2) * 0.15
+    // Before 1928 the bronze is a loose, glowing cloud of what is to come.
+    if (p < 0.2) burst = 0.62 - ss(p, 0.1, 0.2) * 0.1
     else if (p < 0.34) burst = 1 - ss(p, 0.22, 0.3)
     else if (p < 0.46) burst = ss(p, 0.36, 0.44)
     else if (p < 0.58) burst = 1 - ss(p, 0.48, 0.55)

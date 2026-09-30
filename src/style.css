@@ -1,8 +1,9 @@
 :root {
   --bg: #050c1a;
   --royal: #003876;
-  --sky: #00d2ff;
-  --sky2: #4facfe;
+  --sky: #8db8ff; /* Yonsei blue, light */
+  --sky2: #3f78e0;
+  --gold: #e9c592;
   --fg: #f2f7ff;
   --muted: rgba(242, 247, 255, 0.62);
   --glass: rgba(10, 30, 70, 0.45);
@@ -405,29 +406,69 @@ button {
   position: absolute;
   top: 100px;
   left: var(--gutter);
+  z-index: 2;
+}
+/* Quiet the busy campus behind the headline and the readouts. */
+.flight .scene__sticky::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(3, 9, 20, 0.5), transparent 32%), linear-gradient(to top, rgba(3, 9, 20, 0.45), transparent 22%);
+  pointer-events: none;
+}
+.flight__hud,
+.hint--flight,
+.dir-btn,
+.locks {
+  z-index: 2;
+}
+/* Hints step back once the visitor has started interacting. */
+.hint {
+  transition: opacity 0.8s var(--ease);
+}
+.hint.is-quiet {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (max-width: 760px) {
+  .flight__head {
+    top: 128px;
+  }
+  .flight__hud {
+    bottom: 24px;
+    gap: 0;
+  }
+  .flight__hud > div:first-child {
+    display: none;
+  }
+  .hint--flight {
+    bottom: 24px;
+    max-width: 58%;
+  }
 }
 .flight__hud {
   position: absolute;
   right: var(--gutter);
   bottom: 40px;
   display: flex;
-  gap: 32px;
-  padding: 16px 22px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--glass);
-  backdrop-filter: blur(14px);
+  gap: 28px;
   font-family: var(--grotesk);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.55);
+}
+.flight__hud > div {
+  padding-left: 14px;
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
 }
 .hud__label {
   display: block;
+  margin-bottom: 4px;
   font-size: 10px;
-  letter-spacing: 0.3em;
-  color: var(--sky);
+  letter-spacing: 0.22em;
+  color: rgba(255, 255, 255, 0.7);
 }
 .hud__big {
-  font-size: 40px;
-  font-weight: 700;
+  font-size: 28px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 .hud__unit {
@@ -437,10 +478,10 @@ button {
 }
 .hud__mid {
   display: block;
-  margin-top: 8px;
   font-family: var(--sans);
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 .hint--flight {
   position: absolute;
@@ -894,8 +935,8 @@ button {
   transform: translateX(-4px);
 }
 .uw__dots li.is-on::after {
-  background: var(--cyan, #00d2ff);
-  border-color: var(--cyan, #00d2ff);
+  background: var(--sky);
+  border-color: var(--sky);
 }
 .hint--uw {
   position: absolute;

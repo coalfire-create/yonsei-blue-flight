@@ -671,7 +671,7 @@ export class Baekyang {
         anchor = new THREE.Vector3(cx, base + b.h + 6, cz)
         box = new THREE.LineSegments(
           new THREE.EdgesGeometry(new THREE.BoxGeometry(Math.max(...xs) - Math.min(...xs) + 6, b.h + 6, Math.max(...zs) - Math.min(...zs) + 6)),
-          new THREE.LineBasicMaterial({ color: '#00d2ff', transparent: true, opacity: 0, fog: false }),
+          new THREE.LineBasicMaterial({ color: '#8db8ff', transparent: true, opacity: 0, fog: false }),
         )
         box.position.set(cx, base + (b.h + 6) / 2, cz)
         this.scene.add(box)

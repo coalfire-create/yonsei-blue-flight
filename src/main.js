@@ -348,6 +348,17 @@ async function boot() {
     auraStage.style.transform = `rotateY(${x * 24}deg) rotateX(${-y * 18}deg)`
   })
 
+  // Each hint shows until the visitor acts (or for 7 s once in view).
+  document.querySelectorAll('.hint:not(.hint--uw)').forEach((h) => {
+    const sec = h.closest('.scene')
+    let timer = 0
+    const quiet = () => h.classList.add('is-quiet')
+    sec?.addEventListener('pointerdown', quiet, { once: true })
+    new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !timer) timer = setTimeout(quiet, 7000)
+    }).observe(sec)
+  })
+
   let last = performance.now()
   gsap.ticker.add(() => {
     const now = performance.now()
