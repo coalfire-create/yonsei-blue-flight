@@ -9,6 +9,7 @@ import { Globe, HUBS } from './scenes/globe.js'
 import { Akaraka } from './scenes/akaraka.js'
 import { drawAura } from './aura.js'
 import { INFO, KIND } from './data/info.js'
+import { sealSVG } from './seal.js'
 
 const clamp01 = (v) => Math.min(1, Math.max(0, v))
 
@@ -52,6 +53,12 @@ async function boot() {
   const hero = new Hero(document.getElementById('cvHero'))
   const heroLight = new HeroLight(document.getElementById('cvHeroLight'))
   const heroRing = document.getElementById('heroRing')
+  const heroSeal = document.getElementById('heroSeal')
+  heroSeal.innerHTML = sealSVG()
+  const outroSeal = document.getElementById('outroSeal')
+  outroSeal.innerHTML = sealSVG()
+  // The outro seal draws itself when the finale arrives.
+  new IntersectionObserver(([e]) => e.isIntersecting && outroSeal.firstElementChild.classList.add('is-drawn'), { threshold: 0.6 }).observe(outroSeal)
   const flight = new Baekyang(document.getElementById('cvFlight'))
   const underwood = new Underwood(document.getElementById('cvUnderwood'))
   const globe = new Globe(document.getElementById('cvGlobe'))
@@ -90,7 +97,7 @@ async function boot() {
     el.innerHTML = parts.map((p) => `<span class="line"><span class="line__in">${p.trim()}</span></span>`).join('')
   }
   document.querySelectorAll('.flight__head .h2, .global__copy .h2, .akaraka__title, .outro__title').forEach(splitLines)
-  document.querySelectorAll('.outro__ko, .outro__links').forEach((el) => el.classList.add('outro-extra'))
+  document.querySelectorAll('.outro__ko, .outro__links, .outro__facts').forEach((el) => el.classList.add('outro-extra'))
   scenes.slice(1).forEach((s) => {
     s.lines = s.el.querySelectorAll('.line__in')
     s.extras = s.el.querySelectorAll(':scope .scene__sticky > div > .kicker, :scope .scene__sticky > div > .body:not(.uw__body), :scope .outro__head > .kicker, :scope .outro-extra, :scope .outro__actions')
@@ -175,6 +182,7 @@ async function boot() {
     .to('#loader', { yPercent: -100, duration: 1.1, ease: 'expo.inOut' })
     .from('.hero .char', { yPercent: 110, opacity: 0, stagger: 0.025, duration: 1.2, ease: 'expo.out' }, '-=0.5')
     .from('.nav, .hero .kicker, .reveal-hero', { y: 20, opacity: 0, stagger: 0.08, duration: 1, ease: 'power3.out' }, '-=1')
+    .add(() => document.querySelector('#heroSeal .seal').classList.add('is-drawn'), '-=1.4')
 
   /* Hero: remember the pointer path for the Aura Wing card. */
   const trail = []
@@ -404,6 +412,11 @@ async function boot() {
     heroLight.progress = hp
     if (scenes[0].on) heroLight.render(dt)
     heroRing.style.opacity = 1 - clamp01((hp - 0.02) / 0.1)
+    // The seal rises toward you and dissolves as the eagle wakes.
+    const sealK = clamp01(hp / 0.1)
+    heroSeal.style.opacity = (1 - sealK).toFixed(3)
+    heroSeal.style.transform = `translateY(${-sealK * 6}vh) scale(${1 + sealK * 0.35})`
+    heroSeal.style.filter = sealK > 0.01 ? `blur(${(sealK * 8).toFixed(1)}px)` : ''
 
     const fp = progress(scenes[1].el)
     flight.progress = fp

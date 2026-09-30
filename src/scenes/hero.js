@@ -157,7 +157,8 @@ export class Hero {
     poseEagle(this.eagle, this.phase, flap)
     const lift = THREE.MathUtils.smoothstep(p, 0.26, 1)
     // The emblem is drawn larger; it settles to statue size as it turns 3D.
-    this.pivot.scale.setScalar(1.15 - (1 - light) * 0.15)
+    // As a crest behind the seal: wings spread wide past the halo.
+    this.pivot.scale.setScalar(1 + light * 0.38)
     if (this.keyline) this.keyline.visible = flat > 0.02
     const bob = flap * (0.5 - 0.5 * Math.cos(this.phase)) * 0.35
     this.pivot.position.set(0, lift * lift * 9 + lift * 0.6 + bob, lift * 3)
