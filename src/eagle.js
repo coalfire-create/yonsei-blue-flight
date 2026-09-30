@@ -103,7 +103,7 @@ export function bronzeMaterial({ rim = '#4facfe' } = {}) {
   mat.userData.beat = { value: 0 }
   mat.userData.beat2 = { value: 0 }
   mat.userData.flat = { value: 0 } // 1: a flat 2D emblem, 0: the 3D bronze
-  mat.userData.flatColor = { value: new THREE.Color('#1d4fb8') }
+  mat.userData.flatColor = { value: new THREE.Color('#dfe9ff') }
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uFlat = mat.userData.flat
     shader.uniforms.uFlatColor = mat.userData.flatColor

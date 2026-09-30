@@ -2,6 +2,7 @@ import './style.css'
 import gsap from 'gsap'
 import Lenis from 'lenis'
 import { Hero } from './scenes/hero.js'
+import { HeroLight } from './scenes/heroLight.js'
 import { Baekyang } from './scenes/baekyang.js'
 import { ERAS, Underwood } from './scenes/underwood.js'
 import { Globe, HUBS } from './scenes/globe.js'
@@ -50,6 +51,8 @@ async function boot() {
   addEventListener('resize', () => innerWidth !== viewW && ((viewW = innerWidth), (viewH = innerHeight)))
 
   const hero = new Hero(document.getElementById('cvHero'))
+  const heroLight = new HeroLight(document.getElementById('cvHeroLight'))
+  const heroCanvas = document.getElementById('cvHero')
   const flight = new Baekyang(document.getElementById('cvFlight'))
   const underwood = new Underwood(document.getElementById('cvUnderwood'))
   const globe = new Globe(document.getElementById('cvGlobe'))
@@ -157,9 +160,8 @@ async function boot() {
   document.getElementById('cvHero').addEventListener('pointermove', (e) => {
     if (trail.length < 400 && (trail.length === 0 || Math.hypot(e.clientX - trail.at(-1)[0], e.clientY - trail.at(-1)[1]) > 12)) trail.push([e.clientX / innerWidth, e.clientY / innerHeight])
   })
-  const heroOverlay = document.querySelectorAll('.hero__foot, .hero__corner')
+  const heroOverlay = document.querySelectorAll('.hero__side, .hero__pre, .hero__corner, .scroll-hint')
   const heroWord = document.querySelector('.hero__word')
-  const heroBg = document.getElementById('heroBg')
 
   /* 백양로: lock-on reticles and cards. */
   const locks = document.getElementById('locks')
@@ -373,12 +375,15 @@ async function boot() {
     hero.progress = hp
     // The word opens up and lifts away as the eagle takes off; the campus
     // behind drifts with the drag and sinks.
-    const fade = 1 - clamp01((hp - 0.08) / 0.3)
+    const fade = 1 - clamp01((hp - 0.03) / 0.12)
     heroOverlay.forEach((el) => (el.style.opacity = fade))
-    heroWord.style.opacity = 1 - clamp01((hp - 0.12) / 0.35)
-    heroWord.style.transform = `translateY(calc(-46% + ${-hp * 18}vh)) scale(${1 + hp * 0.25})`
-    heroWord.style.letterSpacing = `${-0.035 + hp * 0.08}em`
-    heroBg.style.transform = `translate3d(${-hero.yaw * 14}px, ${hp * 8}vh, 0) scale(${1.02 + hp * 0.1})`
+    heroWord.style.opacity = 1 - clamp01((hp - 0.05) / 0.2)
+    heroWord.style.transform = `translateY(${-hp * 30}vh)`
+    heroWord.style.letterSpacing = `${-0.04 + hp * 0.12}em`
+    // The light eagle folds into a flash and the 3D eagle takes its place.
+    heroLight.progress = hp
+    if (scenes[0].on) heroLight.render(dt)
+    heroCanvas.style.opacity = clamp01((hp - 0.08) / 0.08)
 
     const fp = progress(scenes[1].el)
     flight.progress = fp

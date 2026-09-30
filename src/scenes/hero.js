@@ -29,7 +29,7 @@ export class Hero {
 
     // stage: drag rotation (pillar + eagle); pivot: the eagle's flight.
     this.stage = new THREE.Group()
-    this.stage.position.y = -0.35
+    this.stage.position.y = 0.9 // where the light eagle hangs
     this.scene.add(this.stage)
     this.pivot = new THREE.Group()
     this.stage.add(this.pivot)
@@ -131,7 +131,8 @@ export class Hero {
     // turns to face the viewer as it takes off.
     // 2D emblem (flat, square to the viewer) -> 3D bronze turning to a
     // three-quarter view -> flight.
-    const flat = 1 - THREE.MathUtils.smoothstep(p, 0.015, 0.14)
+    // The light eagle is the 2D stage; the bronze is born white-hot from it.
+    const flat = 1 - THREE.MathUtils.smoothstep(p, 0.1, 0.2)
     this.material.userData.flat.value = flat
     const turn = THREE.MathUtils.smoothstep(p, 0.04, 0.22) * (1 - THREE.MathUtils.smoothstep(p, 0.3, 0.5))
     this.stage.rotation.set(this.pitch * (1 - flat) * (1 - p) * 0.5, (this.yaw * (1 - flat) - 0.7 * turn) * (1 - THREE.MathUtils.smoothstep(p, 0.3, 0.5)), 0)

@@ -4,8 +4,9 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 
-// Holographic globe: a hexagonal-cell shell with latitude scan lines, and
-// synapse arcs firing from Sinchon via Songdo to world hubs. Drag to spin.
+// The real Earth (NASA Blue Marble day map, city lights on the night side,
+// ocean glint and an atmosphere rim) with synapse arcs firing from Sinchon
+// via Songdo to world hubs. Drag to spin.
 
 const SINCHON = [37.5658, 126.9386]
 const SONGDO = [37.3825, 126.669]
@@ -99,12 +100,60 @@ export class Globe {
     this.scene.add(this.group)
     this.time = 0
 
-    const shell = new THREE.Mesh(
-      new THREE.SphereGeometry(R, 96, 64),
-      new THREE.ShaderMaterial({ vertexShader: shellVert, fragmentShader: shellFrag, uniforms: { uTime: { value: 0 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide }),
+    const load = new THREE.TextureLoader()
+    const tex = (f, srgb = true) => {
+      const t = load.load('/earth/' + f)
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace
+      t.anisotropy = 8
+      return t
+    }
+    // Sun fixed in view space (upper left), so the terminator sweeps as it spins.
+    this.sunDir = new THREE.Vector3(-0.8, 0.35, 0.55).normalize()
+    this.earthU = { uSun: { value: new THREE.Vector3() } }
+    const earthMat = new THREE.MeshPhongMaterial({
+      map: tex('earth_atmos_2048.jpg'),
+      specularMap: tex('earth_specular_2048.jpg', false),
+      normalMap: tex('earth_normal_2048.jpg', false),
+      normalScale: new THREE.Vector2(0.6, 0.6),
+      specular: new THREE.Color('#5b7cab'),
+      shininess: 22,
+      emissiveMap: tex('earth_lights_2048.png'),
+      emissive: new THREE.Color('#ffc27a'),
+    })
+    // City lights only on the night side.
+    earthMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uSun = this.earthU.uSun
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform vec3 uSun;')
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+          float night = smoothstep(0.1, -0.25, dot(normalize(vNormal), normalize(uSun)));
+          totalEmissiveRadiance *= night * 1.6;`)
+    }
+    const earth = new THREE.Mesh(new THREE.SphereGeometry(R, 96, 64), earthMat)
+    this.group.add(earth)
+    // Atmosphere: a soft blue rim, brighter on the day side.
+    const atmo = new THREE.Mesh(
+      new THREE.SphereGeometry(R * 1.012, 96, 64),
+      new THREE.ShaderMaterial({
+        uniforms: this.earthU,
+        vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+        fragmentShader: `uniform vec3 uSun; varying vec3 vN; varying vec3 vV;
+          void main(){
+            float rim = pow(1.0 - max(dot(vN, vV), 0.0), 4.0);
+            float day = 0.25 + 0.75 * smoothstep(-0.3, 0.6, dot(vN, normalize(uSun)));
+            gl_FragColor = vec4(vec3(0.4, 0.66, 1.0) * rim * day * 1.3, 1.0);
+          }`,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.FrontSide,
+      }),
     )
-    this.shell = shell
-    this.group.add(shell)
+    this.group.add(atmo)
+    this.atmo = atmo
+    this.sun = new THREE.DirectionalLight('#fff5e6', 2.6)
+    this.scene.add(this.sun, new THREE.AmbientLight('#26375a', 0.35))
+    this.shell = earth
 
     // Arcs: Sinchon -> Songdo, then Songdo -> each hub.
     const sinchon = ll(...SINCHON)
@@ -119,7 +168,7 @@ export class Globe {
       this.group.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CubicBezierCurve3(a, c1, c2, b), 64, 0.012, 5, false), mat))
     }
     arc(sinchon, songdo, 0, '#ffffff')
-    HUBS.forEach(([, la, lo], i) => arc(songdo, ll(la, lo), i + 1, '#00d2ff'))
+    HUBS.forEach(([, la, lo], i) => arc(songdo, ll(la, lo), i + 1, '#9cc4ff'))
 
     // Nodes.
     const dot = (v, size, color) => {
@@ -138,7 +187,7 @@ export class Globe {
 
     this.composer = new EffectComposer(this.renderer)
     this.composer.addPass(new RenderPass(this.scene, this.camera))
-    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.7, 0.5, 0.55))
+    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.6, 0.5, 0.9))
     this.composer.addPass(new OutputPass())
 
     // Start with Korea facing the viewer.
@@ -176,7 +225,9 @@ export class Globe {
     this.renderer.setSize(w, h, false)
     this.composer.setSize(w, h)
     this.camera.aspect = w / h
-    this.camera.position.z = w / h < 0.8 ? 12 : 8.5
+    this.camera.position.z = w / h < 0.8 ? 12 : 9.2
+    // Leave the left third to the headline on wide screens.
+    this.group.position.x = w / h < 0.8 ? 0 : 1.25
     this.camera.updateProjectionMatrix()
   }
 
@@ -202,7 +253,9 @@ export class Globe {
       this.rotY += this.vel + dt * 0.08
     }
     this.group.rotation.set(this.tilt, this.rotY, 0)
-    this.shell.material.uniforms.uTime.value = this.time
+    // Sun in view space; the atmosphere shell stays with the camera.
+    this.sun.position.copy(this.sunDir).multiplyScalar(10)
+    this.earthU.uSun.value.copy(this.sunDir)
     for (const m of this.arcMats) m.uniforms.uTime.value = this.time
     this.composer.render()
   }
