@@ -294,6 +294,7 @@ async function boot() {
   const uwTitle = document.getElementById('uwTitle')
   const uwBody = document.getElementById('uwBody')
   const uwHint = document.getElementById('uwHint')
+  const uwGrain = document.getElementById('uwGrain')
   const uwBubble = document.getElementById('uwBubble')
   const uwDots = ERAS.map((e) => {
     const li = document.createElement('li')
@@ -411,6 +412,7 @@ async function boot() {
         gsap.fromTo([uwYear, uwTitle, uwBody], { y: 24, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.06, duration: 0.6, ease: 'expo.out', overwrite: true })
       }
       uwHint.classList.toggle('is-on', underwood.alive > 0.6)
+      uwGrain.style.opacity = underwood.grain.toFixed(3)
       if (!uwBubble.hidden) {
         const h = underwood.headScreen()
         uwBubble.style.transform = `translate(${h.x + 24}px, ${h.y - 70}px)`
