@@ -1,10 +1,8 @@
 import * as THREE from 'three'
 
-// Opening backdrop: two great wings drawn in fine strands of light (the
-// Yonsei eagle as pure light), slowly beating in front of a swirling
-// accretion-disc halo, with a ring field rippling out from the pointer and
-// motes of light rising. The pointer tilts the wings; scroll folds them
-// into a flash as the 3D eagle takes their place.
+// Opening backdrop: a swirling accretion-disc halo behind the eagle (drawn
+// in lines of light by the hero scene), a ring field rippling out from the
+// pointer, and motes of light rising; it flares as the bronze is born.
 
 const frag = /* glsl */ `
   precision highp float;
@@ -12,6 +10,7 @@ const frag = /* glsl */ `
   uniform float uTime, uProgress;
   uniform vec2 uMouse;
   uniform float uActive;
+  uniform float uCy;
   varying vec2 vUv;
 
   float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -54,7 +53,7 @@ const frag = /* glsl */ `
 
     // Night: deep blue with a halo behind the eagle.
     vec3 col = mix(vec3(0.012, 0.035, 0.12), vec3(0.004, 0.012, 0.05), smoothstep(-0.5, 0.6, p.y));
-    vec2 c = vec2(0.0, aspect < 0.8 ? 0.2 : 0.14);
+    vec2 c = vec2(0.0, uCy < -1.0 ? (aspect < 0.8 ? 0.2 : 0.14) : uCy);
     col += vec3(0.1, 0.25, 0.8) * exp(-length((p - c) * vec2(0.8, 1.2)) * 3.2) * 0.6;
 
     // Accretion halo: a thin ring of swirling light, hot on one side.
@@ -77,25 +76,8 @@ const frag = /* glsl */ `
     float md = length(p - mp);
     col += vec3(0.25, 0.45, 1.0) * pow(0.5 + 0.5 * sin(md * 90.0 - uTime * 5.0), 12.0) * exp(-md * 7.0) * 0.35 * uActive;
 
-    // Wings.
-    float beat = sin(uTime * 0.55) * 0.5 + m.y * 0.4;
-    float fold = smoothstep(0.02, 0.2, pr) * 0.9;
-    float s = aspect < 0.8 ? aspect * 0.78 : 0.74;
-    vec2 q = (p - c) / s;
-    vec2 sh = vec2(0.035, 0.0);
-    vec2 qr = q - sh;
-    vec2 ql = vec2(-q.x, q.y) - sh;
-    // Pointer tilts the whole bird.
-    float tilt = m.x * 0.35;
-    mat2 R = mat2(cos(tilt), -sin(tilt), sin(tilt), cos(tilt));
-    qr = R * qr;
-    ql = mat2(cos(-tilt), -sin(-tilt), sin(-tilt), cos(-tilt)) * ql;
-    vec3 light = wing(qr, beat, fold) + wing(ql, beat, fold);
-    // Body and head: a slim core of light.
-    float core = exp(-pow(q.x * 38.0, 2.0)) * smoothstep(-0.2, -0.02, q.y) * smoothstep(0.1, 0.02, q.y);
-    float head = exp(-length((q - vec2(0.0, 0.065)) * vec2(26.0, 20.0)));
-    light += vec3(0.8, 0.9, 1.0) * (core * 0.9 + head * 1.4);
-    col += light * (1.0 - smoothstep(0.12, 0.3, pr)) * (1.2 + 2.0 * smoothstep(0.08, 0.16, pr));
+    // Scroll: the halo flares as the bronze is born.
+    col += vec3(0.25, 0.45, 1.0) * exp(-length((p - c) * vec2(0.9, 1.3)) * 4.0) * smoothstep(0.04, 0.14, pr) * (1.0 - smoothstep(0.18, 0.35, pr));
 
     // Rising motes.
     vec2 g = vec2(p.x * 40.0, p.y * 40.0 - uTime * 0.8);
@@ -114,13 +96,13 @@ const frag = /* glsl */ `
 `
 
 export class HeroLight {
-  constructor(canvas) {
+  constructor(canvas, { cy = -9 } = {}) {
     this.canvas = canvas
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false })
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, innerWidth < 760 ? 1.5 : 1.75))
     this.scene = new THREE.Scene()
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
-    this.u = { uRes: { value: new THREE.Vector2() }, uTime: { value: 0 }, uProgress: { value: 0 }, uMouse: { value: new THREE.Vector2(0.5, 0.5) }, uActive: { value: 0 } }
+    this.u = { uRes: { value: new THREE.Vector2() }, uTime: { value: 0 }, uProgress: { value: 0 }, uMouse: { value: new THREE.Vector2(0.5, 0.5) }, uActive: { value: 0 }, uCy: { value: cy } }
     this.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: frag, uniforms: this.u })))
     this.mouse = new THREE.Vector2(0.5, 0.5)
     addEventListener('pointermove', (e) => {

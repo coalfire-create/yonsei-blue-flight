@@ -113,8 +113,8 @@ export class Hero {
     this.renderer.setSize(w, h, false)
     this.camera.aspect = w / h
     const portrait = w / h < 0.8
-    this.camera.position.z = portrait ? 19 : 11.5
-    this.lookY = portrait ? 0.4 : 0.25
+    this.lookY = portrait ? -2.4 : 0.25
+    this.camera.position.z = portrait ? 23 : 11.5
     this.camera.updateProjectionMatrix()
   }
 
@@ -132,8 +132,13 @@ export class Hero {
     // 2D emblem (flat, square to the viewer) -> 3D bronze turning to a
     // three-quarter view -> flight.
     // The light eagle is the 2D stage; the bronze is born white-hot from it.
-    const flat = 1 - THREE.MathUtils.smoothstep(p, 0.1, 0.2)
-    this.material.userData.flat.value = flat
+    // A drawing in lines of light, then solid bronze as it wakes.
+    const flat = 0
+    const light = 1 - THREE.MathUtils.smoothstep(p, 0.06, 0.18)
+    this.material.userData.light.value = light
+    this.material.userData.time.value = this.time
+    this.material.transparent = light > 0.001
+    this.material.depthWrite = light < 0.5
     const turn = THREE.MathUtils.smoothstep(p, 0.04, 0.22) * (1 - THREE.MathUtils.smoothstep(p, 0.3, 0.5))
     this.stage.rotation.set(this.pitch * (1 - flat) * (1 - p) * 0.5, (this.yaw * (1 - flat) - 0.7 * turn) * (1 - THREE.MathUtils.smoothstep(p, 0.3, 0.5)), 0)
     // As it takes off the camera tilts up after it, leaving the pillar below.
@@ -152,7 +157,7 @@ export class Hero {
     poseEagle(this.eagle, this.phase, flap)
     const lift = THREE.MathUtils.smoothstep(p, 0.26, 1)
     // The emblem is drawn larger; it settles to statue size as it turns 3D.
-    this.pivot.scale.setScalar(1 + flat * 0.32)
+    this.pivot.scale.setScalar(1.15 - (1 - light) * 0.15)
     if (this.keyline) this.keyline.visible = flat > 0.02
     const bob = flap * (0.5 - 0.5 * Math.cos(this.phase)) * 0.35
     this.pivot.position.set(0, lift * lift * 9 + lift * 0.6 + bob, lift * 3)

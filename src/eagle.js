@@ -104,7 +104,11 @@ export function bronzeMaterial({ rim = '#4facfe' } = {}) {
   mat.userData.beat2 = { value: 0 }
   mat.userData.flat = { value: 0 } // 1: a flat 2D emblem, 0: the 3D bronze
   mat.userData.flatColor = { value: new THREE.Color('#dfe9ff') }
+  mat.userData.light = { value: 0 } // 1: drawn in lines of light
+  mat.userData.time = { value: 0 }
   mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uLight = mat.userData.light
+    shader.uniforms.uT = mat.userData.time
     shader.uniforms.uFlat = mat.userData.flat
     shader.uniforms.uFlatColor = mat.userData.flatColor
     shader.uniforms.uRim = mat.userData.rim
@@ -112,11 +116,11 @@ export function bronzeMaterial({ rim = '#4facfe' } = {}) {
     shader.uniforms.uBeat = mat.userData.beat
     shader.uniforms.uBeat2 = mat.userData.beat2
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\nvarying float vUp;\nuniform float uFlat;\n${hingeChunk}`)
+      .replace('#include <common>', `#include <common>\nvarying float vUp;\nvarying vec3 vObj;\nuniform float uFlat;\n${hingeChunk}`)
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nobjectNormal = wingN(position, objectNormal);')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed = wing(position);\ntransformed.z *= 1.0 - uFlat * 0.96; // pressed flat into an emblem\nvUp = objectNormal.y;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed = wing(position);\ntransformed.z *= 1.0 - uFlat * 0.96; // pressed flat into an emblem\nvUp = objectNormal.y;\nvObj = position;')
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimPower;\nuniform float uFlat;\nuniform vec3 uFlatColor;\nvarying float vUp;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uRim;\nuniform float uRimPower;\nuniform float uFlat;\nuniform vec3 uFlatColor;\nuniform float uLight;\nuniform float uT;\nvarying float vUp;\nvarying vec3 vObj;')
       // Weathered patina: upward faces catch a gold wear, undersides stay dark.
       .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb * 0.5, vec3(0.72, 0.52, 0.24), smoothstep(0.2, 0.95, vUp) * 0.45);')
       .replace(
@@ -126,7 +130,22 @@ export function bronzeMaterial({ rim = '#4facfe' } = {}) {
         // Emblem: one flat ink with a pale keyline on the silhouette.
         float keyl = smoothstep(0.35, 0.8, pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 1.5));
         vec3 ink = uFlatColor * (0.92 + keyl * 0.12);
-        gl_FragColor.rgb = mix(gl_FragColor.rgb, ink, uFlat);`,
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, ink, uFlat);
+        // Light drawing: engraved contour lines plus feather strands radiating
+        // from the shoulders, a bright silhouette rim, light running along.
+        vec3 nv = normalize(normal);
+        float fr = pow(1.0 - abs(dot(nv, normalize(vViewPosition))), 2.2);
+        float ax = abs(vObj.x);
+        float cont = fract(vObj.y * 70.0 + vObj.z * 20.0);
+        float contour = smoothstep(0.1, 0.0, abs(cont - 0.5) - 0.38);
+        float feather = fract(atan(vObj.y - 0.02, max(ax - 0.05, 0.001)) * 28.0 / 3.14159);
+        float strands = smoothstep(0.12, 0.0, abs(feather - 0.5) - 0.36) * smoothstep(0.08, 0.2, ax);
+        float run = 0.6 + 0.4 * sin(length(vObj.xy) * 40.0 - uT * 3.0);
+        float lines = max(contour * 0.55, strands * run);
+        vec3 lc = mix(vec3(0.25, 0.5, 1.0), vec3(0.9, 0.95, 1.0), fr);
+        float la = clamp(lines * 0.8 + fr * 1.1, 0.0, 1.0);
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, lc * (0.5 + la), uLight);
+        gl_FragColor.a = mix(gl_FragColor.a, la, uLight);`,
       )
   }
   mat.customProgramCacheKey = () => 'bronze-eagle'

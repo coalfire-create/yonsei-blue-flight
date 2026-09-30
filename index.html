@@ -45,6 +45,10 @@
       <section class="scene hero" id="hero">
         <div class="scene__sticky">
           <canvas class="scene__canvas hero__light" id="cvHeroLight"></canvas>
+          <svg class="hero__ring" id="heroRing" viewBox="0 0 400 400" aria-hidden="true">
+            <defs><path id="ringPath" d="M200,200 m-176,0 a176,176 0 1,1 352,0 a176,176 0 1,1 -352,0" /></defs>
+            <text><textPath href="#ringPath" textLength="1100">VERITAS VOS LIBERABIT · 진리가 너희를 자유롭게 하리라 · YONSEI UNIVERSITY · SINCE 1885 ·</textPath></text>
+          </svg>
           <canvas class="scene__canvas scene__canvas--grab" id="cvHero"></canvas>
           <div class="hero__corner hero__corner--l reveal-hero">YONSEI UNIVERSITY · EST. 1885</div>
           <div class="hero__corner hero__corner--r reveal-hero">37.56°N 126.94°E · SINCHON</div>
@@ -152,48 +156,27 @@
         </div>
       </section>
 
-      <!-- 06 OUTRO: dusk over the whole campus -->
+      <!-- 06 OUTRO: the halo again, and one clear invitation -->
       <section class="scene outro" id="outro">
         <div class="scene__sticky">
           <canvas class="scene__canvas" id="cvOutro"></canvas>
-          <div class="outro__mark" aria-hidden="true">YONSEI</div>
-          <div class="outro__inner">
-            <div class="outro__head">
-              <span class="kicker">05 — YOUR FLIGHT</span>
-              <h2 class="outro__title"><em>Your flight</em><br />begins here.</h2>
-              <p class="outro__ko">1885년부터 이어진 비상, 이제 당신의 차례입니다.</p>
-              <div class="outro__actions">
-                <button class="btn btn--sky" id="flyBtn" type="button">Fly with Yonsei <span aria-hidden="true">↗</span></button>
-                <button class="btn btn--line" id="auraBtn" type="button">나만의 Aura Wing 카드</button>
-              </div>
+          <div class="outro__center">
+            <span class="kicker outro__kicker">05 — YOUR FLIGHT</span>
+            <h2 class="outro__title">Your flight<br /><em>begins here.</em></h2>
+            <p class="outro__ko">진리가 너희를 자유롭게 하리라. 이제, 연세에서.</p>
+            <div class="outro__actions">
+              <a class="pill pill--light pill--lg" href="https://admission.yonsei.ac.kr" target="_blank" rel="noopener">입학 안내 <span aria-hidden="true">↗</span></a>
             </div>
-            <nav class="dests" aria-label="바로가기">
-              <a class="dest" href="https://admission.yonsei.ac.kr" target="_blank" rel="noopener">
-                <span class="dest__no">01</span>
-                <b class="dest__ko">입학</b>
-                <span class="dest__en">Admissions</span>
-                <span class="dest__txt">모집 요강과 전형 안내, 입학 설명회 일정</span>
-                <span class="dest__arrow" aria-hidden="true">↗</span>
-              </a>
-              <a class="dest" href="https://www.yonsei.ac.kr" target="_blank" rel="noopener">
-                <span class="dest__no">02</span>
-                <b class="dest__ko">연구</b>
-                <span class="dest__en">Research</span>
-                <span class="dest__txt">신촌에서 송도, 세계로 이어지는 연구</span>
-                <span class="dest__arrow" aria-hidden="true">↗</span>
-              </a>
-              <a class="dest" href="https://www.yonsei.ac.kr" target="_blank" rel="noopener">
-                <span class="dest__no">03</span>
-                <b class="dest__ko">기부</b>
-                <span class="dest__en">Giving</span>
-                <span class="dest__txt">다음 세대의 비상을 함께 여는 길</span>
-                <span class="dest__arrow" aria-hidden="true">↗</span>
-              </a>
+            <nav class="outro__links">
+              <a href="https://www.yonsei.ac.kr" target="_blank" rel="noopener">연구</a>
+              <a href="https://www.yonsei.ac.kr" target="_blank" rel="noopener">기부</a>
+              <button type="button" id="auraBtn">나만의 Aura Wing 카드</button>
+              <a href="#hero">처음으로 ↑</a>
             </nav>
           </div>
           <footer class="footer">
             <span>연세대학교 · 서울 서대문구 연세로 50</span>
-            <span>캠퍼스 3D: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · AWS Terrain Tiles</span>
+            <span>캠퍼스 3D: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · AWS Terrain Tiles · Earth: NASA</span>
           </footer>
         </div>
       </section>

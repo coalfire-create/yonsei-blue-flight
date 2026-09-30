@@ -7,7 +7,6 @@ import { Baekyang } from './scenes/baekyang.js'
 import { ERAS, Underwood } from './scenes/underwood.js'
 import { Globe, HUBS } from './scenes/globe.js'
 import { Akaraka } from './scenes/akaraka.js'
-import { Outro } from './scenes/outro.js'
 import { drawAura } from './aura.js'
 import { INFO, KIND } from './data/info.js'
 
@@ -52,12 +51,12 @@ async function boot() {
 
   const hero = new Hero(document.getElementById('cvHero'))
   const heroLight = new HeroLight(document.getElementById('cvHeroLight'))
-  const heroCanvas = document.getElementById('cvHero')
+  const heroRing = document.getElementById('heroRing')
   const flight = new Baekyang(document.getElementById('cvFlight'))
   const underwood = new Underwood(document.getElementById('cvUnderwood'))
   const globe = new Globe(document.getElementById('cvGlobe'))
   const akaraka = new Akaraka(document.getElementById('cvAkaraka'))
-  const outro = new Outro(document.getElementById('cvOutro'))
+  const outro = new HeroLight(document.getElementById('cvOutro'), { cy: 0.02 })
   if (import.meta.env.DEV) Object.assign(window, { __flight: flight })
 
   const scenes = [
@@ -91,7 +90,7 @@ async function boot() {
     el.innerHTML = parts.map((p) => `<span class="line"><span class="line__in">${p.trim()}</span></span>`).join('')
   }
   document.querySelectorAll('.flight__head .h2, .global__copy .h2, .akaraka__title, .outro__title').forEach(splitLines)
-  document.querySelectorAll('.outro__ko, .dest').forEach((el) => el.classList.add('outro-extra'))
+  document.querySelectorAll('.outro__ko, .outro__links').forEach((el) => el.classList.add('outro-extra'))
   scenes.slice(1).forEach((s) => {
     s.lines = s.el.querySelectorAll('.line__in')
     s.extras = s.el.querySelectorAll(':scope .scene__sticky > div > .kicker, :scope .scene__sticky > div > .body:not(.uw__body), :scope .outro__head > .kicker, :scope .outro-extra, :scope .outro__actions')
@@ -336,7 +335,6 @@ async function boot() {
   })
 
   /* Outro: launch and the Aura Wing card. */
-  document.getElementById('flyBtn').addEventListener('click', () => outro.fly())
   const aura = document.getElementById('aura')
   const auraCanvas = document.getElementById('auraCanvas')
   const auraStage = document.getElementById('auraStage')
@@ -383,7 +381,7 @@ async function boot() {
     // The light eagle folds into a flash and the 3D eagle takes its place.
     heroLight.progress = hp
     if (scenes[0].on) heroLight.render(dt)
-    heroCanvas.style.opacity = clamp01((hp - 0.08) / 0.08)
+    heroRing.style.opacity = 1 - clamp01((hp - 0.02) / 0.1)
 
     const fp = progress(scenes[1].el)
     flight.progress = fp
@@ -442,7 +440,6 @@ async function boot() {
         el.style.transform = `translate(${Math.min(s.x, innerWidth - el.offsetWidth - 12)}px, ${s.y + (i === 0 ? -22 : i === 1 ? 10 : 0)}px)`
       })
     }
-    outro.progress = progress(scenes[5].el)
   })
 }
 
