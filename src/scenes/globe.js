@@ -80,11 +80,15 @@ const arcFrag = /* glsl */ `
   uniform float uTime;
   uniform float uOffset;
   uniform vec3 uColor;
+  uniform float uReveal;
   varying float vU;
   void main(){
+    // Drawn out from its start as uReveal goes 0 -> 1, a bright tip leading.
+    if (vU > uReveal) discard;
+    float tip = smoothstep(0.1, 0.0, uReveal - vU) * step(uReveal, 0.999);
     float head = fract(uTime * 0.35 + uOffset);
     float g = smoothstep(0.2, 0.0, head - vU) * step(vU, head);
-    gl_FragColor = vec4(uColor * (0.25 + g * 2.8), 0.22 + g);
+    gl_FragColor = vec4(uColor * (0.25 + g * 2.8 + tip * 3.0), 0.22 + g + tip);
   }
 `
 
@@ -163,7 +167,7 @@ export class Globe {
       const lift = R * (1.05 + a.distanceTo(b) / (2 * R) * 0.5)
       const c1 = a.clone().lerp(b, 0.25).setLength(lift)
       const c2 = a.clone().lerp(b, 0.75).setLength(lift)
-      const mat = new THREE.ShaderMaterial({ vertexShader: arcVert, fragmentShader: arcFrag, uniforms: { uTime: { value: 0 }, uOffset: { value: i * 0.083 }, uColor: { value: new THREE.Color(color) } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+      const mat = new THREE.ShaderMaterial({ vertexShader: arcVert, fragmentShader: arcFrag, uniforms: { uTime: { value: 0 }, uOffset: { value: i * 0.083 }, uColor: { value: new THREE.Color(color) }, uReveal: { value: 1 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
       this.arcMats.push(mat)
       this.group.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CubicBezierCurve3(a, c1, c2, b), 64, 0.012, 5, false), mat))
     }
@@ -175,14 +179,17 @@ export class Globe {
       const m = new THREE.Mesh(new THREE.SphereGeometry(size, 12, 8), new THREE.MeshBasicMaterial({ color }))
       m.position.copy(v)
       this.group.add(m)
+      return m
     }
-    dot(sinchon, 0.06, '#ffffff')
-    dot(songdo, 0.05, '#bfe9ff')
+    this.homeDots = [dot(sinchon, 0.06, '#ffffff'), dot(songdo, 0.05, '#bfe9ff')]
+    this.hubDots = []
     this.hubAnchors = HUBS.map(([, la, lo]) => {
       const v = ll(la, lo)
-      dot(v, 0.035, '#4facfe')
+      this.hubDots.push(dot(v, 0.035, '#4facfe'))
       return v
     })
+    // 0..1 per label (신촌, 송도, then the hubs): how far its arc has drawn.
+    this.reveal = new Array(HUBS.length + 2).fill(1)
     this.homeAnchors = [sinchon, songdo]
 
     this.composer = new EffectComposer(this.renderer)
@@ -191,9 +198,13 @@ export class Globe {
     this.composer.addPass(new OutputPass())
 
     // Start with Korea facing the viewer.
-    this.rotY = -(126.9 * Math.PI) / 180 - Math.PI / 2 + 0.4
+    // Scroll story (progress 0..1): close over 신촌, the arc to 송도, then
+    // pulling back as the globe turns and the world's arcs draw one by one.
+    // Dragging adds on top.
+    this.progress = 0
+    this.userYaw = 0
+    this.userTilt = 0
     this.vel = 0
-    this.tilt = 0.35
     this.#bindDrag()
     this.resize()
     addEventListener('resize', () => this.resize())
@@ -209,8 +220,8 @@ export class Globe {
     c.addEventListener('pointermove', (e) => {
       if (!drag) return
       this.vel = (e.clientX - drag.x) * 0.006
-      this.rotY += this.vel
-      this.tilt = THREE.MathUtils.clamp(this.tilt + (e.clientY - drag.y) * 0.004, -0.6, 0.9)
+      this.userYaw += this.vel
+      this.userTilt = THREE.MathUtils.clamp(this.userTilt + (e.clientY - drag.y) * 0.004, -0.8, 0.6)
       drag = { x: e.clientX, y: e.clientY }
     })
     const end = () => (drag = null)
@@ -225,9 +236,7 @@ export class Globe {
     this.renderer.setSize(w, h, false)
     this.composer.setSize(w, h)
     this.camera.aspect = w / h
-    this.camera.position.z = w / h < 0.8 ? 12 : 9.2
-    // Leave the left third to the headline on wide screens.
-    this.group.position.x = w / h < 0.8 ? 0 : 1.25
+    this.portrait = w / h < 0.8
     this.camera.updateProjectionMatrix()
   }
 
@@ -250,9 +259,28 @@ export class Globe {
     this.time += dt
     if (!this.dragging()) {
       this.vel *= Math.pow(0.05, dt)
-      this.rotY += this.vel + dt * 0.08
+      this.userYaw += this.vel + dt * 0.02
     }
-    this.group.rotation.set(this.tilt, this.rotY, 0)
+    const S = THREE.MathUtils.smoothstep
+    const g = this.progress
+    const out = S(g, 0.08, 0.6)
+    // Facing 신촌: yaw -lon - 90°, tilt = latitude.
+    const yaw = -THREE.MathUtils.degToRad(SINCHON[1]) - Math.PI / 2 - S(g, 0.3, 1) * Math.PI * 1.5
+    const tilt = THREE.MathUtils.lerp(THREE.MathUtils.degToRad(SINCHON[0]), 0.3, S(g, 0.25, 0.8))
+    this.group.rotation.set(tilt + this.userTilt, yaw + this.userYaw, 0)
+    this.camera.position.set(0, out * 0.6, THREE.MathUtils.lerp(this.portrait ? 6.5 : 5, this.portrait ? 12 : 9.2, out))
+    // Leave the left third to the headline on wide screens.
+    this.group.position.x = this.portrait ? 0 : THREE.MathUtils.lerp(0.3, 1.25, out)
+    // Up close the campus dots would bloom into suns.
+    this.homeDots.forEach((d) => d.scale.setScalar(THREE.MathUtils.lerp(0.3, 1, out)))
+    this.reveal[1] = S(g, 0.1, 0.26)
+    this.arcMats[0].uniforms.uReveal.value = this.reveal[1]
+    HUBS.forEach((_, i) => {
+      const r = S(g, 0.3 + i * 0.052, 0.42 + i * 0.052)
+      this.reveal[i + 2] = r
+      this.arcMats[i + 1].uniforms.uReveal.value = r
+      this.hubDots[i].scale.setScalar(Math.max(0.001, r))
+    })
     // Sun in view space; the atmosphere shell stays with the camera.
     this.sun.position.copy(this.sunDir).multiplyScalar(10)
     this.earthU.uSun.value.copy(this.sunDir)

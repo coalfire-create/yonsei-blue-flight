@@ -29,6 +29,14 @@ const X1 = T.x0 + (T.w - 1) * T.step
 const Z1 = T.z0 + (T.h - 1) * T.step
 const MOBILE = innerWidth < 760
 const SUN = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - 11), THREE.MathUtils.degToRad(235))
+// 0 = golden hour, 1 = blue hour with the windows lit; the tour runs from one
+// to the other.
+const NIGHT = { value: 0 }
+const DUSK = {
+  sun: [new THREE.Color('#ffc98f'), new THREE.Color('#ff7a45')],
+  sky: [new THREE.Color('#a9c3e6'), new THREE.Color('#34487a')],
+  fog: [new THREE.Color('#a9b4c0'), new THREE.Color('#34436a')],
+}
 
 // Wall / roof look by style: s = style index, per-building seed, base and top.
 const STYLE = { c: 0, g: 1, m: 2, h: 3, d: 4, t: 5, a: 6 }
@@ -47,6 +55,7 @@ const buildingChunks = {
     vUp = normal.y;
   `,
   fragmentPars: /* glsl */ `
+    uniform float uNight;
     varying vec4 vB;
     varying vec3 vPos;
     varying vec2 vUv2;
@@ -92,10 +101,10 @@ const buildingChunks = {
       if (bStyle > 0.5 && bStyle < 1.5) inWin *= step(0.07, abs(cell.x)) * step(0.07, abs(cell.y - 0.3));
       winMask = inWin;
       float r = hash(vec3(fl, bay, bSeed * 91.0));
-      lit = inWin * step(0.82, r);
+      lit = inWin * step(0.82 - uNight * 0.32, r);
       // Glass mirrors the golden sky toward the top of each pane.
       vec3 sky = mix(vec3(0.95, 0.72, 0.45), vec3(0.45, 0.6, 0.8), clamp(cell.y / g.w + 0.5, 0.0, 1.0));
-      vec3 glassCol = mix(glass, sky, 0.28 + 0.2 * r);
+      vec3 glassCol = mix(glass, sky * (1.0 - uNight * 0.75), 0.28 + 0.2 * r);
       wall = mix(wall, glassCol, inWin);
     } else {
       // Roofs: concrete with vents and tar joints.
@@ -112,13 +121,14 @@ const buildingChunks = {
     metalnessFactor = mix(0.0, 0.55, winMask);
   `,
   emissive: /* glsl */ `
-    totalEmissiveRadiance += vec3(1.0, 0.72, 0.4) * lit * 0.9;
+    totalEmissiveRadiance += vec3(1.0, 0.72, 0.4) * lit * (0.9 + uNight * 2.6);
   `,
 }
 
 function buildingMaterial() {
   const mat = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0 })
   mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uNight = NIGHT
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\n' + buildingChunks.vertexPars)
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + buildingChunks.vertex)
@@ -187,6 +197,10 @@ export class Baekyang {
     this.camera = new THREE.PerspectiveCamera(58, 1, 2, 6000)
     this.progress = 0
     this.boost = 0
+    this.speed = 0 // camera speed, m/s
+    this.rush = 0 // 0..1, how fast it feels
+    this.sunDir = SUN.clone()
+    this.lightDir = SUN.clone()
     this.mouse = new THREE.Vector2()
     this.time = 0
     this.heights = null
@@ -231,6 +245,7 @@ export class Baekyang {
     u.mieCoefficient.value = 0.006
     u.mieDirectionalG.value = 0.85
     u.sunPosition.value.copy(SUN)
+    this.sky = sky
     this.scene.add(sky)
     // Reflections from the same sky.
     const pmrem = new THREE.PMREMGenerator(this.renderer)
@@ -253,7 +268,8 @@ export class Baekyang {
     c.updateProjectionMatrix()
     this.sun.shadow.bias = -0.0004
     this.sun.shadow.normalBias = 0.6
-    this.scene.add(this.sun, this.sun.target, new THREE.HemisphereLight('#a9c3e6', '#5a4d3c', 0.55))
+    this.hemi = new THREE.HemisphereLight('#a9c3e6', '#5a4d3c', 0.55)
+    this.scene.add(this.sun, this.sun.target, this.hemi)
   }
 
   // Ground texture painted from OSM land areas and streets; relief from DEM.
@@ -513,6 +529,52 @@ export class Baekyang {
       }
       tg.u = best / (N - 1)
     }
+    this.#buildPace()
+  }
+
+  // Scroll -> path position. The path itself runs at an even speed; here the
+  // flight eases off at the gate and at every landmark (more scroll per
+  // metre, so it lingers) and rushes through the stretches in between.
+  #buildPace() {
+    const N = 800
+    const cum = new Float32Array(N)
+    let acc = 0
+    for (let i = 0; i < N; i++) {
+      const u = i / (N - 1)
+      let d = 0.55 + 1.6 * Math.exp(-((u / 0.04) ** 2))
+      for (const t of this.targets) if (t.u !== undefined) d += 2.4 * Math.exp(-(((u - t.u) / 0.02) ** 2))
+      cum[i] = acc
+      acc += d
+    }
+    this.pace = (s) => {
+      const want = THREE.MathUtils.clamp(s, 0, 1) * cum[N - 1]
+      let lo = 0
+      let hi = N - 1
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1
+        if (cum[mid] < want) lo = mid
+        else hi = mid
+      }
+      const t = (want - cum[lo]) / Math.max(1e-6, cum[hi] - cum[lo])
+      return (lo + THREE.MathUtils.clamp(t, 0, 1)) / (N - 1)
+    }
+  }
+
+  #setNight(n) {
+    NIGHT.value = n
+    const u = this.sky.material.uniforms
+    this.sunDir.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - THREE.MathUtils.lerp(11, 0.6, n)), THREE.MathUtils.degToRad(235 + n * 12))
+    u.sunPosition.value.copy(this.sunDir)
+    u.rayleigh.value = 2.2 + n * 2.2
+    u.turbidity.value = 7 - n * 4
+    // The light itself never drops below the horizon.
+    this.lightDir.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - THREE.MathUtils.lerp(11, 4, n)), THREE.MathUtils.degToRad(235 + n * 12))
+    this.sun.intensity = THREE.MathUtils.lerp(3.2, 0.45, n)
+    this.sun.color.lerpColors(...DUSK.sun, n)
+    this.hemi.intensity = THREE.MathUtils.lerp(0.55, 0.32, n)
+    this.hemi.color.lerpColors(...DUSK.sky, n)
+    this.scene.fog.color.lerpColors(...DUSK.fog, n)
+    this.scene.environmentIntensity = THREE.MathUtils.lerp(0.35, 0.12, n)
   }
 
   #buildBuildings() {
@@ -788,7 +850,7 @@ export class Baekyang {
     this.camera.position.set(...pos)
     this.camera.lookAt(...look)
     this.sun.target.position.set(...look)
-    this.sun.position.set(...look).addScaledVector(SUN, 900)
+    this.sun.position.set(...look).addScaledVector(this.lightDir, 900)
     this.renderer.render(this.scene, this.camera)
     const url = this.canvas.toDataURL('image/jpeg', 0.88)
     ;[this.flier.visible, this.statue.visible] = keep
@@ -836,7 +898,8 @@ export class Baekyang {
   render(dt) {
     this.time += dt
     this.boost += ((this.hover && !this.free ? 0.03 : 0) - this.boost) * Math.min(1, dt * 2)
-    const u = Math.min(1, this.progress + this.boost * (1 - this.progress))
+    const s = this.pace ? this.pace(this.progress) : this.progress
+    const u = Math.min(1, s + this.boost * (1 - s))
     // Critically damped follow of the scroll position.
     this.u = this.u === undefined ? u : this.u + (u - this.u) * (1 - Math.exp(-dt * 2.6))
     this.look ??= new THREE.Vector3()
@@ -886,11 +949,24 @@ export class Baekyang {
     this.camQ ??= this.aim.quaternion.clone()
     this.camQ.slerp(this.aim.quaternion, 1 - Math.exp(-dt * 5))
     this.roll = (this.roll ?? 0) + ((this.free ? 0 : -this.mouse.x * 0.06) - (this.roll ?? 0)) * (1 - Math.exp(-dt * 3))
-    this.camera.quaternion.copy(this.camQ).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), this.roll))
+    // Speed: the view widens and shivers as the flight rushes.
+    const moved = this.lastPos ? this.camera.position.distanceTo(this.lastPos) : 0
+    ;(this.lastPos ??= new THREE.Vector3()).copy(this.camera.position)
+    this.speed += (Math.min(600, moved / Math.max(dt, 1e-3)) - this.speed) * (1 - Math.exp(-dt * 4))
+    this.rush = THREE.MathUtils.clamp((this.speed - 20) / 200, 0, 1)
+    const shiver = Math.sin(this.time * 31) * Math.sin(this.time * 17) * 0.006 * this.rush
+    this.camera.quaternion.copy(this.camQ).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), this.roll + shiver))
+    const fov = (this.portrait ? 74 : 58) + this.rush * 16
+    if (Math.abs(fov - this.camera.fov) > 0.01) {
+      this.camera.fov = fov
+      this.camera.updateProjectionMatrix()
+    }
+    const night = THREE.MathUtils.smoothstep(this.u, 0.35, 0.96)
+    if (this.sky && Math.abs(night - NIGHT.value) > 0.002) this.#setNight(night)
 
     // Sun and its shadow box follow what we look at.
     this.sun.target.position.copy(this.look)
-    this.sun.position.copy(this.look).addScaledVector(SUN, 900)
+    this.sun.position.copy(this.look).addScaledVector(this.lightDir, 900)
 
     this.#flyEagle(dt, u)
     for (const t of this.targets) {

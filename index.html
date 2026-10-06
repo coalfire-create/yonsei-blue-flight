@@ -18,19 +18,22 @@
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Noto+Serif+KR:wght@900&family=Inter+Tight:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
   </head>
   <body>
     <div class="loader" id="loader">
-      <span class="loader__code">PROJECT BLUE FLIGHT</span>
-      <span class="loader__num" id="loaderNum">0</span>
+      <span class="loader__glyph">延世</span>
+      <div class="loader__foot">
+        <span>YONSEI UNIVERSITY</span>
+        <span id="loaderNum">0</span>
+      </div>
       <div class="loader__bar"><span id="loaderBar"></span></div>
     </div>
 
     <div class="progress-line" id="progressLine"></div>
     <header class="nav">
-      <a href="#hero" class="nav__logo">YONSEI<span>/ BLUE FLIGHT</span></a>
+      <a href="#hero" class="nav__logo" aria-label="연세대학교">Yonsei<sup>延世</sup></a>
       <nav class="nav__links">
         <a href="#flight">캠퍼스</a>
         <a href="#underwood">언더우드</a>
@@ -41,25 +44,26 @@
     </header>
 
     <main>
-      <!-- 01 HERO: chrome-sapphire eagle -->
+      <!-- 01 HERO: Yonsei-blue silk -->
       <section class="scene hero" id="hero">
         <div class="scene__sticky">
-          <canvas class="scene__canvas hero__light" id="cvHeroLight"></canvas>
-          <svg class="hero__ring" id="heroRing" viewBox="0 0 400 400" aria-hidden="true">
-            <defs><path id="ringPath" d="M200,200 m-176,0 a176,176 0 1,1 352,0 a176,176 0 1,1 -352,0" /></defs>
-            <text><textPath href="#ringPath" textLength="1100">VERITAS VOS LIBERABIT · 진리가 너희를 자유롭게 하리라 · YONSEI UNIVERSITY · SINCE 1885 ·</textPath></text>
-          </svg>
-          <canvas class="scene__canvas scene__canvas--grab" id="cvHero"></canvas>
-          <div class="hero__seal" id="heroSeal"></div>
-          <div class="hero__corner hero__corner--l reveal-hero">YONSEI UNIVERSITY · EST. 1885</div>
-          <div class="hero__corner hero__corner--r reveal-hero">37.56°N 126.94°E · SINCHON</div>
-          <div class="hero__bottom">
-            <div class="hero__main">
-              <p class="hero__pre reveal-hero">진리가 너희를 자유롭게 하리라.</p>
-              <h1 class="hero__word"><span class="split">Yonsei</span></h1>
+          <canvas class="scene__canvas" id="cvHero"></canvas>
+          <canvas class="scene__canvas hero__eagle" id="cvEagle" aria-hidden="true"></canvas>
+          <div class="hero__top">
+            <span class="eyebrow">YONSEI UNIVERSITY · SINCE 1885</span>
+            <span class="eyebrow">SINCHON — SONGDO — WONJU</span>
+          </div>
+          <div class="hero__body">
+            <p class="hero__kicker reveal-hero">진리가 너희를 자유롭게 하리라.</p>
+            <h1 class="hero__word"><span class="split">Yonsei</span></h1>
+            <div class="hero__row reveal-hero">
+              <p class="hero__desc">1885년 제중원에서 시작된 140여 년.<br />진리와 자유의 길을 잇는 대학.</p>
+              <div class="hero__cta">
+                <a href="#flight" class="pill pill--light">캠퍼스 날아보기</a>
+                <a href="#flight" class="pill">Scroll ↓</a>
+              </div>
             </div>
           </div>
-          <div class="scroll-hint reveal-hero"><span></span>SCROLL</div>
         </div>
       </section>
 
@@ -67,6 +71,7 @@
       <section class="scene flight" id="flight">
         <div class="scene__sticky">
           <canvas class="scene__canvas" id="cvFlight"></canvas>
+          <canvas class="scene__canvas speed-lines" id="speedLines" aria-hidden="true"></canvas>
           <div class="locks" id="locks"></div>
           <div class="flight__head">
             <span class="kicker">01 — EAGLE FPV · 신촌캠퍼스 전역</span>
@@ -149,30 +154,43 @@
         </div>
       </section>
 
-      <!-- 06 OUTRO: the halo again, and one clear invitation -->
+      <!-- 06 OUTRO: rewind to the start, then dawn -->
       <section class="scene outro" id="outro">
         <div class="scene__sticky">
           <canvas class="scene__canvas" id="cvOutro"></canvas>
-          <div class="outro__center">
-            <div class="outro__seal" id="outroSeal"></div>
-            <span class="kicker outro__kicker">05 — YOUR FLIGHT</span>
-            <h2 class="outro__title">Your flight<br /><em>begins here.</em></h2>
-            <p class="outro__ko">진리가 너희를 자유롭게 하리라. 이제, 연세에서.</p>
-            <div class="outro__actions">
-              <a class="pill pill--light pill--lg" href="https://admission.yonsei.ac.kr" target="_blank" rel="noopener">입학 안내 <span aria-hidden="true">↗</span></a>
+          <div class="marquee" aria-hidden="true">
+            <div class="marquee__track" id="marquee">
+              <span>VERITAS VOS LIBERABIT · SINCHON · SONGDO · WONJU · SINCE 1885 ·&nbsp;</span><span>VERITAS VOS LIBERABIT · SINCHON · SONGDO · WONJU · SINCE 1885 ·&nbsp;</span>
             </div>
-            <p class="outro__facts"><span>SINCE 1885</span><span>신촌</span><span>송도</span><span>원주</span></p>
-            <nav class="outro__links">
-              <a href="https://www.yonsei.ac.kr" target="_blank" rel="noopener">연구</a>
-              <a href="https://www.yonsei.ac.kr" target="_blank" rel="noopener">기부</a>
-              <button type="button" id="auraBtn">나만의 Aura Wing 카드</button>
-              <a href="#hero">처음으로 ↑</a>
-            </nav>
+          </div>
+          <div class="outro__top">
+            <span class="eyebrow">05 — YOUR FLIGHT</span>
+            <span class="eyebrow">YONSEI UNIVERSITY</span>
+          </div>
+          <div class="outro__body">
+            <h2 class="outro__title">Your flight<br /><em>begins here.</em></h2>
+            <div class="outro__row">
+              <p class="outro__ko">진리가 너희를 자유롭게 하리라.<br />이제, 연세에서 날아오를 차례입니다.</p>
+              <div class="outro__actions">
+                <a class="pill pill--ink" href="https://admission.yonsei.ac.kr" target="_blank" rel="noopener">입학 안내 ↗</a>
+                <button type="button" class="pill pill--inkline" id="auraBtn">나만의 Aura Wing 카드</button>
+                <a class="pill pill--inkline" href="#hero">처음으로 ↑</a>
+              </div>
+            </div>
           </div>
           <footer class="footer">
             <span>연세대학교 · 서울 서대문구 연세로 50</span>
             <span>캠퍼스 3D: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · AWS Terrain Tiles · Earth: NASA</span>
           </footer>
+          <div class="rewind" id="rewind" aria-hidden="true">
+            <canvas id="rewindCv"></canvas>
+            <div class="rewind__hud">
+              <span class="rewind__rec">◀◀ REWIND</span>
+              <span id="rewindLabel"></span>
+              <span id="rewindTime">00:00</span>
+            </div>
+          </div>
+          <div class="flash" id="flash"></div>
         </div>
       </section>
     </main>
